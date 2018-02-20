@@ -41,12 +41,10 @@ import android.preference.PreferenceManager;
 import android.provider.Telephony;
 import android.telephony.CarrierConfigManager;
 import android.telephony.CellBroadcastMessage;
-import android.telephony.SmsCbCmasInfo;
 import android.telephony.SmsCbEtwsInfo;
 import android.telephony.SmsCbLocation;
 import android.telephony.SmsCbMessage;
 import android.telephony.SubscriptionManager;
-import android.telephony.TelephonyManager;
 import android.util.Log;
 
 import com.android.cellbroadcastreceiver.CellBroadcastChannelManager.CellBroadcastChannelRange;
@@ -246,7 +244,7 @@ public class CellBroadcastAlertService extends Service {
             Log.e(TAG, "Invalid subscription id");
         }
 
-        if (!isMessageEnabledByUser(cbm)) {
+        if (!isMessageEnabled(cbm)) {
             Log.d(TAG, "ignoring alert of type " + cbm.getServiceCategory() +
                     " by user preference");
             return;
@@ -366,41 +364,18 @@ public class CellBroadcastAlertService extends Service {
     }
 
     /**
-     * Check if the device is currently on roaming.
-     *
-     * @param subId Subscription index
-     * @return True if roaming, otherwise not roaming.
-     */
-    private boolean isRoaming(int subId) {
-        Context context = getApplicationContext();
-
-        if (context != null) {
-            TelephonyManager tm =
-                    (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
-            return tm.isNetworkRoaming(subId);
-        }
-
-        return false;
-    }
-
-    /**
-     * Filter out broadcasts on the test channels that the user has not enabled,
-     * and types of notifications that the user is not interested in receiving.
-     * This allows us to enable an entire range of message identifiers in the
-     * radio and not have to explicitly disable the message identifiers for
-     * test broadcasts. In the unlikely event that the default shared preference
-     * values were not initialized in CellBroadcastReceiverApp, the second parameter
-     * to the getBoolean() calls match the default values in res/xml/preferences.xml.
+     * Check if the message is enabled. The message could be enabled or disabled by users or
+     * roaming conditions.
      *
      * @param message the message to check
      * @return true if the user has enabled this message type; false otherwise
      */
-    private boolean isMessageEnabledByUser(CellBroadcastMessage message) {
+    private boolean isMessageEnabled(CellBroadcastMessage message) {
 
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
         // Check if all emergency alerts are disabled.
         boolean emergencyAlertEnabled =
-                prefs.getBoolean(CellBroadcastSettings.KEY_ENABLE_EMERGENCY_ALERTS, true);
+                prefs.getBoolean(CellBroadcastSettings.KEY_ENABLE_ALERTS_MASTER_TOGGLE, true);
 
         // Check if ETWS/CMAS test message is forced to disabled on the device.
         boolean forceDisableEtwsCmasTest =
@@ -416,7 +391,7 @@ public class CellBroadcastAlertService extends Service {
             return emergencyAlertEnabled &&
                     !forceDisableEtwsCmasTest &&
                     PreferenceManager.getDefaultSharedPreferences(this)
-                    .getBoolean(CellBroadcastSettings.KEY_ENABLE_ETWS_TEST_ALERTS, false);
+                    .getBoolean(CellBroadcastSettings.KEY_ENABLE_TEST_ALERTS, false);
         }
 
         if (message.isEtwsMessage()) {
@@ -432,13 +407,17 @@ public class CellBroadcastAlertService extends Service {
         // If those channels are enabled by the carrier, but the device is actually roaming, we
         // should not allow the messages.
         ArrayList<CellBroadcastChannelRange> ranges = CellBroadcastChannelManager
-                .getInstance().getCellBroadcastChannelRanges(getApplicationContext());
+                .getInstance().getCellBroadcastChannelRanges(getApplicationContext(),
+                R.array.additional_cbs_channels_strings);
 
         if (ranges != null) {
             for (CellBroadcastChannelRange range : ranges) {
                 if (range.mStartId <= channel && range.mEndId >= channel) {
-                    // We only enable the channels when the device is not roaming.
-                    if (isRoaming(message.getSubId())) {
+                    // Check if the channel is within the scope. If not, ignore the alert message.
+                    if (!CellBroadcastChannelManager.checkScope(getApplicationContext(),
+                            message.getSubId(), range.mScope)) {
+                        Log.d(TAG, "The range [" + range.mStartId + "-" + range.mEndId
+                                + "] is not within the scope. mScope = " + range.mScope);
                         return false;
                     }
 
@@ -465,7 +444,7 @@ public class CellBroadcastAlertService extends Service {
                         return emergencyAlertEnabled
                                 && !forceDisableEtwsCmasTest
                                 && PreferenceManager.getDefaultSharedPreferences(this)
-                                .getBoolean(CellBroadcastSettings.KEY_ENABLE_ETWS_TEST_ALERTS,
+                                .getBoolean(CellBroadcastSettings.KEY_ENABLE_TEST_ALERTS,
                                         false);
                     }
 
@@ -473,38 +452,58 @@ public class CellBroadcastAlertService extends Service {
                 }
             }
         }
-
-        if (message.isCmasMessage()) {
-            switch (message.getCmasMessageClass()) {
-                case SmsCbCmasInfo.CMAS_CLASS_EXTREME_THREAT:
-                    return emergencyAlertEnabled &&
-                            PreferenceManager.getDefaultSharedPreferences(this).getBoolean(
+        int subId = message.getSubId();
+        if (CellBroadcastChannelManager.checkCellBroadcastChannelRange(subId,
+                channel, R.array.emergency_alerts_channels_range_strings, this)) {
+            return emergencyAlertEnabled
+                    && PreferenceManager.getDefaultSharedPreferences(this).getBoolean(
+                            CellBroadcastSettings.KEY_ENABLE_EMERGENCY_ALERTS, true);
+        }
+        // CMAS warning types
+        if (CellBroadcastChannelManager.checkCellBroadcastChannelRange(subId,
+                channel, R.array.cmas_presidential_alerts_channels_range_strings, this)) {
+            // always enabled
+            return true;
+        }
+        if (CellBroadcastChannelManager.checkCellBroadcastChannelRange(subId,
+                channel, R.array.cmas_alert_extreme_channels_range_strings, this)) {
+            return emergencyAlertEnabled
+                    && PreferenceManager.getDefaultSharedPreferences(this).getBoolean(
                             CellBroadcastSettings.KEY_ENABLE_CMAS_EXTREME_THREAT_ALERTS, true);
-
-                case SmsCbCmasInfo.CMAS_CLASS_SEVERE_THREAT:
-                    return emergencyAlertEnabled &&
-                            PreferenceManager.getDefaultSharedPreferences(this).getBoolean(
+        }
+        if (CellBroadcastChannelManager.checkCellBroadcastChannelRange(subId,
+                channel, R.array.cmas_alerts_severe_range_strings, this)) {
+            return emergencyAlertEnabled
+                    && PreferenceManager.getDefaultSharedPreferences(this).getBoolean(
                             CellBroadcastSettings.KEY_ENABLE_CMAS_SEVERE_THREAT_ALERTS, true);
-
-                case SmsCbCmasInfo.CMAS_CLASS_CHILD_ABDUCTION_EMERGENCY:
-                    return emergencyAlertEnabled &&
-                            PreferenceManager.getDefaultSharedPreferences(this)
+        }
+        if (CellBroadcastChannelManager.checkCellBroadcastChannelRange(subId,
+                channel, R.array.cmas_amber_alerts_channels_range_strings, this)) {
+            return emergencyAlertEnabled
+                    && PreferenceManager.getDefaultSharedPreferences(this)
                             .getBoolean(CellBroadcastSettings.KEY_ENABLE_CMAS_AMBER_ALERTS, true);
-
-                case SmsCbCmasInfo.CMAS_CLASS_REQUIRED_MONTHLY_TEST:
-                case SmsCbCmasInfo.CMAS_CLASS_CMAS_EXERCISE:
-                case SmsCbCmasInfo.CMAS_CLASS_OPERATOR_DEFINED_USE:
-                    return emergencyAlertEnabled &&
-                            !forceDisableEtwsCmasTest &&
-                            PreferenceManager.getDefaultSharedPreferences(this)
-                                    .getBoolean(CellBroadcastSettings.KEY_ENABLE_CMAS_TEST_ALERTS,
-                                            false);
-                default:
-                    return true;    // presidential-level CMAS alerts are always enabled
-            }
         }
 
-        return true;    // other broadcast messages are always enabled
+        if (CellBroadcastChannelManager.checkCellBroadcastChannelRange(subId,
+                channel, R.array.required_monthly_test_range_strings, this)
+                || CellBroadcastChannelManager.checkCellBroadcastChannelRange(subId,
+                channel, R.array.exercise_alert_range_strings, this)
+                || CellBroadcastChannelManager.checkCellBroadcastChannelRange(subId,
+                channel, R.array.operator_defined_alert_range_strings, this)) {
+            return emergencyAlertEnabled
+                    && !forceDisableEtwsCmasTest
+                    && PreferenceManager.getDefaultSharedPreferences(this)
+                            .getBoolean(CellBroadcastSettings.KEY_ENABLE_TEST_ALERTS,
+                                    false);
+        }
+        if (CellBroadcastChannelManager.checkCellBroadcastChannelRange(subId,
+                channel, R.array.safety_info_alerts_channels_range_strings, this)) {
+            return emergencyAlertEnabled
+                    && PreferenceManager.getDefaultSharedPreferences(this)
+                    .getBoolean(CellBroadcastSettings.KEY_ENABLE_SAFETY_INFO_ALERTS,
+                            true);
+        }
+        return true;
     }
 
     /**
@@ -550,7 +549,8 @@ public class CellBroadcastAlertService extends Service {
         } else {
             int channel = message.getServiceCategory();
             ArrayList<CellBroadcastChannelRange> ranges = CellBroadcastChannelManager
-                    .getInstance().getCellBroadcastChannelRanges(getApplicationContext());
+                    .getInstance().getCellBroadcastChannelRanges(getApplicationContext(),
+                    R.array.additional_cbs_channels_strings);
             if (ranges != null) {
                 for (CellBroadcastChannelRange range : ranges) {
                     if (channel >= range.mStartId && channel <= range.mEndId) {
@@ -774,7 +774,8 @@ public class CellBroadcastAlertService extends Service {
             isEmergency = true;
         } else {
             ArrayList<CellBroadcastChannelRange> ranges = CellBroadcastChannelManager
-                    .getInstance().getCellBroadcastChannelRanges(context);
+                    .getInstance().getCellBroadcastChannelRanges(context,
+                    R.array.additional_cbs_channels_strings);
 
             if (ranges != null) {
                 for (CellBroadcastChannelRange range : ranges) {
