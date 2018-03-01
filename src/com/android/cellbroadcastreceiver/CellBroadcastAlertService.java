@@ -35,6 +35,7 @@ import android.os.IBinder;
 import android.os.PersistableBundle;
 import android.os.RemoteException;
 import android.os.SystemClock;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.preference.PreferenceManager;
 import android.provider.Telephony;
@@ -82,6 +83,12 @@ public class CellBroadcastAlertService extends Service {
             "com.android.cellbroadcastreceiver.CB_AREA_INFO_RECEIVED";
 
     static final String SETTINGS_APP = "com.android.settings";
+
+    /** System property to enable/disable broadcast duplicate detecion. */
+    private static final String CB_DUP_DETECTION = "persist.vendor.cb.dup_detection";
+
+    /** Check for system property to enable/disable duplicate detection. */
+    static boolean mUseDupDetection = SystemProperties.getBoolean(CB_DUP_DETECTION, true);
 
     /** Intent extra for passing a SmsCbMessage */
     private static final String EXTRA_MESSAGE = "message";
@@ -265,6 +272,18 @@ public class CellBroadcastAlertService extends Service {
             }
         }
 
+        boolean carrierDisableDupDetection = false;
+        CarrierConfigManager configManager =
+                (CarrierConfigManager) getSystemService(Context.CARRIER_CONFIG_SERVICE);
+        if (configManager != null) {
+            PersistableBundle carrierConfig = configManager.getConfigForSubId(subId);
+            if (carrierConfig != null) {
+                carrierDisableDupDetection =
+                        carrierConfig.getBoolean("carrier_disable_etws_cmas_dup_detection");
+                Log.d(TAG, "carrierDisableDupDetection = " + carrierDisableDupDetection);
+            }
+        }
+
         // Check for duplicate message IDs according to CMAS carrier requirements. Message IDs
         // are stored in volatile memory. If the maximum of 1024 messages is reached, the
         // message ID of the oldest message is deleted from the list.
@@ -276,7 +295,8 @@ public class CellBroadcastAlertService extends Service {
 
         long nowTime = SystemClock.elapsedRealtime();
         // Check if the identical message arrives again
-        if (sMessagesMap.get(newCmasId) != null) {
+        if (mUseDupDetection && !carrierDisableDupDetection &&
+                sMessagesMap.get(newCmasId) != null) {
             // And if the previous one has not expired yet, treat it as a duplicate message.
             long previousTime = sMessagesMap.get(newCmasId);
             long expirationTime = getDuplicateExpirationTime(subId);
