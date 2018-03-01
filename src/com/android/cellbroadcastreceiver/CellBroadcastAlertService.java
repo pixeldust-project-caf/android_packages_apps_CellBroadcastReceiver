@@ -71,10 +71,16 @@ public class CellBroadcastAlertService extends Service {
     static final int NOTIFICATION_ID = 1;
 
     /**
-     * Notification channel containing all cellbroadcast broadcast messages notifications.
-     * Use the same notification channel for non-emergency alerts.
+     * Notification channel containing for non-emergency alerts.
      */
-    static final String NOTIFICATION_CHANNEL_BROADCAST_MESSAGES = "broadcastMessages";
+    static final String NOTIFICATION_CHANNEL_NON_EMERGENCY_ALERTS = "broadcastMessagesNonEmergency";
+
+    /**
+     * Notification channel for emergency alerts. This is used when users sneak out of the
+     * noisy pop-up for a real emergency and get a notification due to not officially acknowledged
+     * the alert and want to refer it back later.
+     */
+    static final String NOTIFICATION_CHANNEL_EMERGENCY_ALERTS = "broadcastMessages";
 
     /** Sticky broadcast for latest area info broadcast received. */
     static final String CB_AREA_INFO_RECEIVED_ACTION =
@@ -101,12 +107,13 @@ public class CellBroadcastAlertService extends Service {
      * Alert type
      */
     public enum AlertType {
-        CMAS_DEFAULT,
+        DEFAULT,
         ETWS_DEFAULT,
         ETWS_EARTHQUAKE,
         ETWS_TSUNAMI,
-        ETWS_TEST,
+        TEST,
         AREA,
+        INFO,
         OTHER
     }
 
@@ -440,7 +447,7 @@ public class CellBroadcastAlertService extends Service {
                             // area info broadcasts are displayed in Settings status screen
                         }
                         return false;
-                    } else if (range.mAlertType == AlertType.ETWS_TEST) {
+                    } else if (range.mAlertType == AlertType.TEST) {
                         return emergencyAlertEnabled
                                 && !forceDisableEtwsCmasTest
                                 && PreferenceManager.getDefaultSharedPreferences(this)
@@ -523,7 +530,7 @@ public class CellBroadcastAlertService extends Service {
         audioIntent.setAction(CellBroadcastAlertAudio.ACTION_START_ALERT_AUDIO);
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
 
-        AlertType alertType = AlertType.CMAS_DEFAULT;
+        AlertType alertType = AlertType.DEFAULT;
         if (message.isEtwsMessage()) {
             alertType = AlertType.ETWS_DEFAULT;
 
@@ -539,7 +546,7 @@ public class CellBroadcastAlertService extends Service {
                         alertType = AlertType.ETWS_TSUNAMI;
                         break;
                     case SmsCbEtwsInfo.ETWS_WARNING_TYPE_TEST_MESSAGE:
-                        alertType = AlertType.ETWS_TEST;
+                        alertType = AlertType.TEST;
                         break;
                     case SmsCbEtwsInfo.ETWS_WARNING_TYPE_OTHER_EMERGENCY:
                         alertType = AlertType.OTHER;
@@ -550,7 +557,10 @@ public class CellBroadcastAlertService extends Service {
             int channel = message.getServiceCategory();
             ArrayList<CellBroadcastChannelRange> ranges = CellBroadcastChannelManager
                     .getInstance().getCellBroadcastChannelRanges(getApplicationContext(),
-                    R.array.additional_cbs_channels_strings);
+                            R.array.additional_cbs_channels_strings);
+            ranges.addAll(CellBroadcastChannelManager
+                    .getInstance().getCellBroadcastChannelRanges(getApplicationContext(),
+                            R.array.safety_info_alerts_channels_range_strings));
             if (ranges != null) {
                 for (CellBroadcastChannelRange range : ranges) {
                     if (channel >= range.mStartId && channel <= range.mEndId) {
@@ -560,9 +570,13 @@ public class CellBroadcastAlertService extends Service {
                 }
             }
         }
+        CellBroadcastChannelRange range = CellBroadcastChannelManager
+                .getCellBroadcastChannelRangeFromMessage(getApplicationContext(), message);
         audioIntent.putExtra(CellBroadcastAlertAudio.ALERT_AUDIO_TONE_TYPE, alertType);
         audioIntent.putExtra(CellBroadcastAlertAudio.ALERT_AUDIO_VIBRATE_EXTRA,
                 prefs.getBoolean(CellBroadcastSettings.KEY_ENABLE_ALERT_VIBRATE, true));
+        audioIntent.putExtra(CellBroadcastAlertAudio.ALERT_AUDIO_VIBRATION_PATTERN_EXTRA,
+                (range != null) ? range.mVibrationPattern : null);
 
         String messageBody = message.getMessageBody();
 
@@ -650,10 +664,10 @@ public class CellBroadcastAlertService extends Service {
             pi = PendingIntent.getActivity(context, NOTIFICATION_ID, intent,
                     PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_UPDATE_CURRENT);
         }
-
+        final String channelId = isEmergencyMessage(context, message)
+                ? NOTIFICATION_CHANNEL_EMERGENCY_ALERTS : NOTIFICATION_CHANNEL_NON_EMERGENCY_ALERTS;
         // use default sound/vibration/lights for non-emergency broadcasts
-        Notification.Builder builder = new Notification.Builder(
-                context, NOTIFICATION_CHANNEL_BROADCAST_MESSAGES)
+        Notification.Builder builder = new Notification.Builder(context, channelId)
                 .setSmallIcon(R.drawable.ic_warning_googred)
                 .setTicker(channelName)
                 .setWhen(System.currentTimeMillis())
@@ -714,9 +728,15 @@ public class CellBroadcastAlertService extends Service {
     static void createNotificationChannels(Context context) {
         NotificationManager.from(context).createNotificationChannel(
                 new NotificationChannel(
-                NOTIFICATION_CHANNEL_BROADCAST_MESSAGES,
+                        NOTIFICATION_CHANNEL_EMERGENCY_ALERTS,
+                        context.getString(R.string.notification_channel_emergency_alerts),
+                        NotificationManager.IMPORTANCE_LOW));
+        final NotificationChannel nonEmergency = new NotificationChannel(
+                NOTIFICATION_CHANNEL_NON_EMERGENCY_ALERTS,
                 context.getString(R.string.notification_channel_broadcast_messages),
-                NotificationManager.IMPORTANCE_LOW));
+                NotificationManager.IMPORTANCE_DEFAULT);
+        nonEmergency.enableVibration(true);
+        NotificationManager.from(context).createNotificationChannel(nonEmergency);
     }
 
     static Intent createDisplayMessageIntent(Context context, Class intentClass,
@@ -776,7 +796,9 @@ public class CellBroadcastAlertService extends Service {
             ArrayList<CellBroadcastChannelRange> ranges = CellBroadcastChannelManager
                     .getInstance().getCellBroadcastChannelRanges(context,
                     R.array.additional_cbs_channels_strings);
-
+            ranges.addAll(CellBroadcastChannelManager
+                    .getInstance().getCellBroadcastChannelRanges(context,
+                            R.array.safety_info_alerts_channels_range_strings));
             if (ranges != null) {
                 for (CellBroadcastChannelRange range : ranges) {
                     if (range.mStartId <= id && range.mEndId >= id) {
@@ -787,7 +809,7 @@ public class CellBroadcastAlertService extends Service {
             }
         }
 
-        Log.d(TAG, "isEmergencyMessage: " + isEmergency + "message id = " + id);
+        Log.d(TAG, "isEmergencyMessage: " + isEmergency + ", message id = " + id);
         return isEmergency;
     }
 }
