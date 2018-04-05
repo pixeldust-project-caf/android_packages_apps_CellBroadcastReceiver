@@ -131,4 +131,5 @@
         <item>500</item>
         <item>1000</item>
     </integer-array>
+    <bool name="config_showAreaUpdateInfoSettings">false</bool>
 </resources>

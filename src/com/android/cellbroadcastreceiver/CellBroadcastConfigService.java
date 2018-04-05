@@ -155,10 +155,9 @@ public class CellBroadcastConfigService extends IntentService {
         boolean enableTestAlerts = !forceDisableEtwsCmasTest && enableAlertsMasterToggle
                 && prefs.getBoolean(CellBroadcastSettings.KEY_ENABLE_TEST_ALERTS, false);
 
-        boolean enableAreaUpdateInfoAlerts = Resources.getSystem().getBoolean(
-                com.android.internal.R.bool.config_showAreaUpdateInfoSettings)
-                && prefs.getBoolean(CellBroadcastSettings.KEY_ENABLE_AREA_UPDATE_INFO_ALERTS,
-                false);
+        boolean enableAreaUpdateInfoAlerts =
+                CellBroadcastSettings.isAreaUpdateInfoSettingsEnabled(this) &&
+                prefs.getBoolean(CellBroadcastSettings.KEY_ENABLE_AREA_UPDATE_INFO_ALERTS, false);
 
         // Non-CMAS channels
         boolean enablePublicSafetyMessagesChannelAlerts = enableAlertsMasterToggle
