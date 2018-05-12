@@ -396,7 +396,6 @@ public class CellBroadcastAlertService extends Service {
 
         if (message.isEtwsTestMessage()) {
             return emergencyAlertEnabled &&
-                    !forceDisableEtwsCmasTest &&
                     PreferenceManager.getDefaultSharedPreferences(this)
                     .getBoolean(CellBroadcastSettings.KEY_ENABLE_TEST_ALERTS, false);
         }
@@ -449,7 +448,6 @@ public class CellBroadcastAlertService extends Service {
                         return false;
                     } else if (range.mAlertType == AlertType.TEST) {
                         return emergencyAlertEnabled
-                                && !forceDisableEtwsCmasTest
                                 && PreferenceManager.getDefaultSharedPreferences(this)
                                 .getBoolean(CellBroadcastSettings.KEY_ENABLE_TEST_ALERTS,
                                         false);
@@ -498,7 +496,6 @@ public class CellBroadcastAlertService extends Service {
                 || CellBroadcastChannelManager.checkCellBroadcastChannelRange(subId,
                 channel, R.array.operator_defined_alert_range_strings, this)) {
             return emergencyAlertEnabled
-                    && !forceDisableEtwsCmasTest
                     && PreferenceManager.getDefaultSharedPreferences(this)
                             .getBoolean(CellBroadcastSettings.KEY_ENABLE_TEST_ALERTS,
                                     false);
