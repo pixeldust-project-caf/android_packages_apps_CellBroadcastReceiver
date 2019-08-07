@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Copyright (C) 2018 The Android Open Source Project
+<!-- Copyright (C) 2019 The Android Open Source Project
 
      Licensed under the Apache License, Version 2.0 (the "License");
      you may not use this file except in compliance with the License.
@@ -15,10 +15,6 @@
 -->
 
 <resources>
-    <!-- Whether to compare message body when performing message duplicate dection -->
-    <bool name="duplicate_compare_body">true</bool>
-    <!-- Whether to reset alert message duplicate detection after toggling airplane mode -->
-    <bool name="reset_duplicate_detection_on_airplane_mode">true</bool>
-    <!-- Show timestamp of the alert -->
-    <bool name="show_date_time_title">true</bool>
+    <!-- Whether to show CMAS messages by in a different order than received by prioritizing them -->
+    <bool name="show_cmas_messages_in_priority_order">true</bool>
 </resources>
