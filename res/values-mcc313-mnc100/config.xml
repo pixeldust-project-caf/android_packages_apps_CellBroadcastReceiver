@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Copyright (C) 2017 The Android Open Source Project
+<!-- Copyright (C) 2019 The Android Open Source Project
 
      Licensed under the Apache License, Version 2.0 (the "License");
      you may not use this file except in compliance with the License.
@@ -13,14 +13,12 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 -->
-
 <resources>
-    <string-array name="etws_alerts_range_strings" translatable="false">
-        <!-- 0x1100 for earthquake -->
-        <item>0x1100:rat=gsm, type=etws_earthquake, emergency=true</item>
-        <!-- 0x1101 for tsunami -->
-        <item>0x1101:rat=gsm, type=etws_tsunami, emergency=true</item>
-        <!-- 0xA808 for other purposes -->
-        <item>0xA808:rat=gsm, type=other, emergency=true, scope=carrier</item>
-    </string-array>
+    <!-- Whether to compare message body when performing message duplicate dection -->
+    <bool name="duplicate_compare_body">true</bool>
+    <!-- Whether to reset alert message duplicate detection after toggling airplane mode -->
+    <bool name="reset_duplicate_detection_on_airplane_mode">true</bool>
+    <!-- Show timestamp of the alert -->
+    <bool name="show_date_time_title">true</bool>
 </resources>
+

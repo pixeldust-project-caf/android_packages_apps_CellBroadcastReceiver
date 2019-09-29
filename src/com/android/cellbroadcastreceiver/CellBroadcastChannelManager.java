@@ -24,7 +24,6 @@ import android.telephony.TelephonyManager;
 import android.util.Log;
 
 import com.android.cellbroadcastreceiver.CellBroadcastAlertService.AlertType;
-import com.android.internal.util.ArrayUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -47,8 +46,6 @@ import java.util.List;
 public class CellBroadcastChannelManager {
 
     private static final String TAG = "CBChannelManager";
-
-    private static CellBroadcastChannelManager sInstance = null;
 
     private static List<Integer> sCellBroadcastRangeResourceKeys = new ArrayList<>(
             Arrays.asList(R.array.additional_cbs_channels_strings,
@@ -157,7 +154,7 @@ public class CellBroadcastChannelManager {
                                 break;
                             case KEY_VIBRATION:
                                 String[] vibration = value.split("\\|");
-                                if (!ArrayUtils.isEmpty(vibration)) {
+                                if (vibration != null && vibration.length > 0) {
                                     mVibrationPattern = new int[vibration.length];
                                     for (int i = 0; i < vibration.length; i++) {
                                         mVibrationPattern[i] = Integer.parseInt(vibration[i]);
@@ -193,17 +190,6 @@ public class CellBroadcastChannelManager {
                     + mEmergencyLevel + ",type=" + mAlertType + ",scope=" + mScope + ",vibration="
                     + Arrays.toString(mVibrationPattern) + "]";
         }
-    }
-
-    /**
-     * Get the instance of the cell broadcast other channel manager
-     * @return The singleton instance
-     */
-    public static CellBroadcastChannelManager getInstance() {
-        if (sInstance == null) {
-            sInstance = new CellBroadcastChannelManager();
-        }
-        return sInstance;
     }
 
     /**
@@ -262,8 +248,8 @@ public class CellBroadcastChannelManager {
      */
     public static boolean checkCellBroadcastChannelRange(int subId, int channel, int key,
             Context context) {
-        ArrayList<CellBroadcastChannelRange> ranges = CellBroadcastChannelManager
-                .getInstance().getCellBroadcastChannelRanges(context, key);
+        ArrayList<CellBroadcastChannelRange> ranges =
+                CellBroadcastChannelManager.getCellBroadcastChannelRanges(context, key);
         if (ranges != null) {
             for (CellBroadcastChannelRange range : ranges) {
                 if (channel >= range.mStartId && channel <= range.mEndId) {
