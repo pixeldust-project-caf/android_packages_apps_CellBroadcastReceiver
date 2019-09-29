@@ -33,7 +33,6 @@ import android.os.Binder;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.PersistableBundle;
-import android.os.PowerManager;
 import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.UserHandle;
@@ -593,9 +592,6 @@ public class CellBroadcastAlertService extends Service {
      * @param message the alert to display
      */
     private void openEmergencyAlertNotification(CellBroadcastMessage message) {
-        // Acquire a screen bright wakelock until the alert dialog and audio start playing.
-        CellBroadcastAlertWakeLock.acquireScreenBrightWakeLock(this);
-
         // Close dialogs and window shade
         Intent closeDialogs = new Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
         sendBroadcast(closeDialogs);
@@ -675,11 +671,6 @@ public class CellBroadcastAlertService extends Service {
             Intent alertDialogIntent = createDisplayMessageIntent(this,
                     CellBroadcastAlertDialog.class, messageList);
             alertDialogIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-            // Wake up the device up regardless the scenario. (The device might be
-            // in screen saver mode that needs to be waken up otherwise the alert
-            // window can not be displayed.)
-            pm.wakeUp(SystemClock.uptimeMillis());
             startActivity(alertDialogIntent);
         }
 
