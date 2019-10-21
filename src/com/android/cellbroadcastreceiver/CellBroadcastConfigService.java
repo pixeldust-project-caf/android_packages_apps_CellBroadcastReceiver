@@ -163,6 +163,8 @@ public class CellBroadcastConfigService extends IntentService {
         boolean enableEmergencyAlerts = enableAlertsMasterToggle && prefs.getBoolean(
                 CellBroadcastSettings.KEY_ENABLE_EMERGENCY_ALERTS, true);
 
+        boolean enableGeoFencingTriggerMessage = enableForSub;
+
         if (VDBG) {
             log("enableAlertsMasterToggle = " + enableAlertsMasterToggle);
             log("enableEtwsAlerts = " + enableEtwsAlerts);
@@ -176,6 +178,7 @@ public class CellBroadcastConfigService extends IntentService {
                     + enablePublicSafetyMessagesChannelAlerts);
             log("enableStateLocalTestAlerts = " + enableStateLocalTestAlerts);
             log("enableEmergencyAlerts = " + enableEmergencyAlerts);
+            log("enableGeoFencingTriggerMessage = " + enableGeoFencingTriggerMessage);
             log("isDefaultSub = " + isDefaultSub);
         }
 
@@ -231,6 +234,13 @@ public class CellBroadcastConfigService extends IntentService {
         setCellBroadcastRange(manager, enableStateLocalTestAlerts,
                 CellBroadcastChannelManager.getInstance().getCellBroadcastChannelRanges(this,
                         R.array.state_local_test_alert_range_strings));
+
+        // Enable/Disable GSM geo-fencing trigger messages.
+        setCellBroadcastRange(
+                manager,
+                enableGeoFencingTriggerMessage,
+                CellBroadcastChannelManager.getCellBroadcastChannelRanges(
+                        this, R.array.geo_fencing_trigger_messages_range_strings));
 
         /** Enable non-CMAS series messages. */
 
