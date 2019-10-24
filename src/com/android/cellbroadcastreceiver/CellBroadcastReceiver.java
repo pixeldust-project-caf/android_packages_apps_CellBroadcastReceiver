@@ -33,7 +33,7 @@ import android.telephony.SubscriptionManager;
 import android.telephony.cdma.CdmaSmsCbProgramData;
 import android.util.Log;
 
-import com.android.internal.telephony.cdma.sms.SmsEnvelope;
+import java.util.ArrayList;
 
 public class CellBroadcastReceiver extends BroadcastReceiver {
     private static final String TAG = "CellBroadcastReceiver";
@@ -92,12 +92,12 @@ public class CellBroadcastReceiver extends BroadcastReceiver {
         } else if (Telephony.Sms.Intents.SMS_SERVICE_CATEGORY_PROGRAM_DATA_RECEIVED_ACTION
                 .equals(action)) {
             if (privileged) {
-                CdmaSmsCbProgramData[] programDataList = (CdmaSmsCbProgramData[])
-                        intent.getParcelableArrayExtra("program_data_list");
+                ArrayList<CdmaSmsCbProgramData> programDataList =
+                        intent.getParcelableArrayListExtra("program_data");
                 if (programDataList != null) {
                     handleCdmaSmsCbProgramData(context, programDataList);
                 } else {
-                    loge("SCPD intent received with no program_data_list");
+                    loge("SCPD intent received with no program_data");
                 }
             } else {
                 loge("ignoring unprivileged action received " + action);
@@ -151,6 +151,9 @@ public class CellBroadcastReceiver extends BroadcastReceiver {
                 // Sets the default values of the shared preference if there isn't any.
                 PreferenceManager.setDefaultValues(context, R.xml.preferences, false);
 
+                sp.edit().putBoolean(CellBroadcastSettings.KEY_USE_FULL_VOLUME_SETTINGS_CHANGED,
+                        false).apply();
+
                 // If the device is in test harness mode, we need to disable emergency alert by
                 // default.
                 if (ActivityManager.isRunningInUserTestHarness()) {
@@ -176,7 +179,7 @@ public class CellBroadcastReceiver extends BroadcastReceiver {
      * @param programDataList
      */
     private void handleCdmaSmsCbProgramData(Context context,
-                                            CdmaSmsCbProgramData[] programDataList) {
+                                            ArrayList<CdmaSmsCbProgramData> programDataList) {
         for (CdmaSmsCbProgramData programData : programDataList) {
             switch (programData.getOperation()) {
                 case CdmaSmsCbProgramData.OPERATION_ADD_CATEGORY:
@@ -189,13 +192,13 @@ public class CellBroadcastReceiver extends BroadcastReceiver {
 
                 case CdmaSmsCbProgramData.OPERATION_CLEAR_CATEGORIES:
                     tryCdmaSetCategory(context,
-                            SmsEnvelope.SERVICE_CATEGORY_CMAS_EXTREME_THREAT, false);
+                            CdmaSmsCbProgramData.CATEGORY_CMAS_EXTREME_THREAT, false);
                     tryCdmaSetCategory(context,
-                            SmsEnvelope.SERVICE_CATEGORY_CMAS_SEVERE_THREAT, false);
+                            CdmaSmsCbProgramData.CATEGORY_CMAS_SEVERE_THREAT, false);
                     tryCdmaSetCategory(context,
-                            SmsEnvelope.SERVICE_CATEGORY_CMAS_CHILD_ABDUCTION_EMERGENCY, false);
+                            CdmaSmsCbProgramData.CATEGORY_CMAS_CHILD_ABDUCTION_EMERGENCY, false);
                     tryCdmaSetCategory(context,
-                            SmsEnvelope.SERVICE_CATEGORY_CMAS_TEST_MESSAGE, false);
+                            CdmaSmsCbProgramData.CATEGORY_CMAS_TEST_MESSAGE, false);
                     break;
 
                 default:
@@ -208,24 +211,24 @@ public class CellBroadcastReceiver extends BroadcastReceiver {
         SharedPreferences sharedPrefs = PreferenceManager.getDefaultSharedPreferences(context);
 
         switch (category) {
-            case SmsEnvelope.SERVICE_CATEGORY_CMAS_EXTREME_THREAT:
+            case CdmaSmsCbProgramData.CATEGORY_CMAS_EXTREME_THREAT:
                 sharedPrefs.edit().putBoolean(
                         CellBroadcastSettings.KEY_ENABLE_CMAS_EXTREME_THREAT_ALERTS, enable)
                         .apply();
                 break;
 
-            case SmsEnvelope.SERVICE_CATEGORY_CMAS_SEVERE_THREAT:
+            case CdmaSmsCbProgramData.CATEGORY_CMAS_SEVERE_THREAT:
                 sharedPrefs.edit().putBoolean(
                         CellBroadcastSettings.KEY_ENABLE_CMAS_SEVERE_THREAT_ALERTS, enable)
                         .apply();
                 break;
 
-            case SmsEnvelope.SERVICE_CATEGORY_CMAS_CHILD_ABDUCTION_EMERGENCY:
+            case CdmaSmsCbProgramData.CATEGORY_CMAS_CHILD_ABDUCTION_EMERGENCY:
                 sharedPrefs.edit().putBoolean(
                         CellBroadcastSettings.KEY_ENABLE_CMAS_AMBER_ALERTS, enable).apply();
                 break;
 
-            case SmsEnvelope.SERVICE_CATEGORY_CMAS_TEST_MESSAGE:
+            case CdmaSmsCbProgramData.CATEGORY_CMAS_TEST_MESSAGE:
                 sharedPrefs.edit().putBoolean(
                         CellBroadcastSettings.KEY_ENABLE_TEST_ALERTS, enable).apply();
                 break;

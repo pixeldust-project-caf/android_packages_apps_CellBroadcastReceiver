@@ -39,18 +39,15 @@ import android.os.UserHandle;
 import android.preference.PreferenceManager;
 import android.provider.Telephony;
 import android.telephony.CarrierConfigManager;
-import android.telephony.CellBroadcastMessage;
 import android.telephony.SmsCbEtwsInfo;
 import android.telephony.SmsCbLocation;
 import android.telephony.SmsCbMessage;
-import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
 
 import com.android.cellbroadcastreceiver.CellBroadcastChannelManager.CellBroadcastChannelRange;
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.telephony.PhoneConstants;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -250,7 +247,7 @@ public class CellBroadcastAlertService extends Service {
         TelephonyManager tm =
                 ((TelephonyManager)
                                 getApplicationContext().getSystemService(Context.TELEPHONY_SERVICE))
-                        .createForSubscriptionId(cbm.getSubId());
+                        .createForSubscriptionId(cbm.getSubId(getApplicationContext()));
         if (tm.getEmergencyCallbackMode()
                 && CellBroadcastSettings.getResourcesForDefaultSmsSubscriptionId(
                                 getApplicationContext())
@@ -264,6 +261,13 @@ public class CellBroadcastAlertService extends Service {
         if (!isChannelEnabled(cbm)) {
             Log.d(TAG, "ignoring alert of type " + cbm.getServiceCategory()
                     + " by user preference");
+            return false;
+        }
+
+        // Check if message body is empty
+        String msgBody = cbm.getMessageBody();
+        if (msgBody == null || msgBody.length() == 0) {
+            Log.e(TAG, "Empty content or Unsupported charset");
             return false;
         }
 
@@ -315,12 +319,7 @@ public class CellBroadcastAlertService extends Service {
         }
 
         final CellBroadcastMessage cbm = new CellBroadcastMessage(message);
-        int subId = intent.getExtras().getInt(PhoneConstants.SUBSCRIPTION_KEY);
-        if (SubscriptionManager.isValidSubscriptionId(subId)) {
-            cbm.setSubId(subId);
-        } else {
-            Log.e(TAG, "Invalid subscription id");
-        }
+        int subId = cbm.getSubId(getApplicationContext());
 
         if (!shouldDisplayMessage(cbm)) {
             return;
@@ -491,7 +490,7 @@ public class CellBroadcastAlertService extends Service {
                 if (range.mStartId <= channel && range.mEndId >= channel) {
                     // Check if the channel is within the scope. If not, ignore the alert message.
                     if (!CellBroadcastChannelManager.checkScope(getApplicationContext(),
-                            message.getSubId(), range.mScope)) {
+                            message.getSubId(getApplicationContext()), range.mScope)) {
                         Log.d(TAG, "The range [" + range.mStartId + "-" + range.mEndId
                                 + "] is not within the scope. mScope = " + range.mScope);
                         return false;
@@ -506,7 +505,7 @@ public class CellBroadcastAlertService extends Service {
                             CellBroadcastReceiverApp.setLatestAreaInfo(message);
                             Intent intent = new Intent(CB_AREA_INFO_RECEIVED_ACTION);
                             intent.setPackage(SETTINGS_APP);
-                            intent.putExtra(EXTRA_MESSAGE, message);
+                            intent.putExtra(EXTRA_MESSAGE, message.getSmsCbMessage());
                             // Send broadcast twice, once for apps that have PRIVILEGED permission
                             // and once for those that have the runtime one.
                             sendBroadcastAsUser(intent, UserHandle.ALL,
@@ -527,7 +526,7 @@ public class CellBroadcastAlertService extends Service {
                 }
             }
         }
-        int subId = message.getSubId();
+        int subId = message.getSubId(getApplicationContext());
         if (CellBroadcastChannelManager.checkCellBroadcastChannelRange(subId,
                 channel, R.array.emergency_alerts_channels_range_strings, this)) {
             return emergencyAlertEnabled
@@ -715,6 +714,10 @@ public class CellBroadcastAlertService extends Service {
         }
         final String channelId = CellBroadcastChannelManager.isEmergencyMessage(context, message)
                 ? NOTIFICATION_CHANNEL_EMERGENCY_ALERTS : NOTIFICATION_CHANNEL_NON_EMERGENCY_ALERTS;
+
+        boolean nonSwipeableNotification = message.isEmergencyAlertMessage()
+                && res.getBoolean(R.bool.non_swipeable_notificaiton);
+
         // use default sound/vibration/lights for non-emergency broadcasts
         Notification.Builder builder =
                 new Notification.Builder(context, channelId)
@@ -725,7 +728,7 @@ public class CellBroadcastAlertService extends Service {
                         .setPriority(Notification.PRIORITY_HIGH)
                         .setColor(res.getColor(R.color.notification_color))
                         .setVisibility(Notification.VISIBILITY_PUBLIC)
-                        .setOngoing(message.isEmergencyAlertMessage());
+                        .setOngoing(nonSwipeableNotification);
 
         if (context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH)) {
             builder.setDeleteIntent(pi);
