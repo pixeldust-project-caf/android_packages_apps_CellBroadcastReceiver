@@ -45,7 +45,7 @@
             android:directBootAware="true">
 
         <meta-data android:name="com.google.android.backup.api_key"
-            android:value="AEdPqrEAAAAI2_Lb4sDI0e0twL-kf6GIqXpZIfrR0OhnM1pNJQ" />
+                android:value="AEdPqrEAAAAI2_Lb4sDI0e0twL-kf6GIqXpZIfrR0OhnM1pNJQ" />
 
         <service android:name="CellBroadcastAlertAudio"
                  android:exported="false" />

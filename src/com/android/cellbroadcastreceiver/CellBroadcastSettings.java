@@ -22,6 +22,7 @@ import android.app.Fragment;
 import android.app.backup.BackupManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.os.Bundle;
@@ -36,10 +37,9 @@ import androidx.preference.ListPreference;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceCategory;
 import androidx.preference.PreferenceFragment;
+import androidx.preference.PreferenceManager;
 import androidx.preference.PreferenceScreen;
 import androidx.preference.TwoStatePreference;
-
-import com.android.settingslib.development.DevelopmentSettingsEnabler;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -70,6 +70,9 @@ public class CellBroadcastSettings extends Activity {
 
     // Always play at full volume when playing the alert sound.
     public static final String KEY_USE_FULL_VOLUME = "use_full_volume";
+
+    public static final String KEY_USE_FULL_VOLUME_SETTINGS_CHANGED =
+            "use_full_volume_settings_changed";
 
     // Preference category for emergency alert and CMAS settings.
     public static final String KEY_CATEGORY_EMERGENCY_ALERTS = "category_emergency_alerts";
@@ -247,7 +250,7 @@ public class CellBroadcastSettings extends Activity {
                         findPreference(KEY_CATEGORY_EMERGENCY_ALERTS);
             }
 
-
+            SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(getContext());
             mDisableSevereWhenExtremeDisabled = isFeatureEnabled(getContext(),
                     CarrierConfigManager.KEY_DISABLE_SEVERE_WHEN_EXTREME_DISABLED_BOOL, true);
 
@@ -281,7 +284,7 @@ public class CellBroadcastSettings extends Activity {
 
             // Show extra settings when developer options is enabled in settings.
             boolean enableDevSettings =
-                    DevelopmentSettingsEnabler.isDevelopmentSettingsEnabled(getContext());
+                    DevelopmentSettingsHelper.isDevelopmentSettingsEnabled(getContext());
 
             Resources res = getResourcesForDefaultSmsSubscriptionId(getContext());
             initReminderIntervalList();
@@ -402,6 +405,19 @@ public class CellBroadcastSettings extends Activity {
                         startConfigServiceListener);
             }
 
+            if (mFullVolumeCheckBox != null
+                    && !sp.getBoolean(KEY_USE_FULL_VOLUME_SETTINGS_CHANGED, false)) {
+                // If the user hasn't changed this settings yet, use the default settings from
+                // resource overlay.
+                mFullVolumeCheckBox.setChecked(res.getBoolean(R.bool.use_full_volume));
+                mFullVolumeCheckBox.setOnPreferenceChangeListener(
+                        (pref, newValue) -> {
+                            sp.edit().putBoolean(KEY_USE_FULL_VOLUME_SETTINGS_CHANGED,
+                                    true).apply();
+                            return true;
+                        });
+            }
+
             if (mAlertHistory != null) {
                 mAlertHistory.setOnPreferenceClickListener(
                         new Preference.OnPreferenceClickListener() {
@@ -420,12 +436,12 @@ public class CellBroadcastSettings extends Activity {
             return !CellBroadcastChannelManager.getCellBroadcastChannelRanges(
                     this.getContext(), R.array.required_monthly_test_range_strings).isEmpty()
                     || !CellBroadcastChannelManager.getCellBroadcastChannelRanges(
-                            this.getContext(), R.array.exercise_alert_range_strings).isEmpty()
+                    this.getContext(), R.array.exercise_alert_range_strings).isEmpty()
                     || !CellBroadcastChannelManager.getCellBroadcastChannelRanges(
-                            this.getContext(), R.array.operator_defined_alert_range_strings)
+                    this.getContext(), R.array.operator_defined_alert_range_strings)
                     .isEmpty()
                     || !CellBroadcastChannelManager.getCellBroadcastChannelRanges(
-                            this.getContext(), R.array.etws_test_alerts_range_strings).isEmpty();
+                    this.getContext(), R.array.etws_test_alerts_range_strings).isEmpty();
         }
 
         private void initReminderIntervalList() {

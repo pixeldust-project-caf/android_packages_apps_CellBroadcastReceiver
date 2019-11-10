@@ -28,7 +28,24 @@ import android.telephony.SmsCbEtwsInfo;
 import android.telephony.SmsCbMessage;
 import android.util.Log;
 
-import com.android.internal.telephony.gsm.SmsCbConstants;
+import static com.android.cellbroadcastservice.SmsCbConstants.MESSAGE_ID_ETWS_EARTHQUAKE_WARNING;
+import static com.android.cellbroadcastservice.SmsCbConstants.MESSAGE_ID_ETWS_TSUNAMI_WARNING;
+import static com.android.cellbroadcastservice.SmsCbConstants.MESSAGE_ID_ETWS_EARTHQUAKE_AND_TSUNAMI_WARNING;
+import static com.android.cellbroadcastservice.SmsCbConstants.MESSAGE_ID_ETWS_TEST_MESSAGE;
+import static com.android.cellbroadcastservice.SmsCbConstants.MESSAGE_ID_ETWS_OTHER_EMERGENCY_TYPE;
+import static com.android.cellbroadcastservice.SmsCbConstants.MESSAGE_ID_CMAS_ALERT_PRESIDENTIAL_LEVEL;
+import static com.android.cellbroadcastservice.SmsCbConstants.MESSAGE_ID_CMAS_ALERT_EXTREME_IMMEDIATE_OBSERVED;
+import static com.android.cellbroadcastservice.SmsCbConstants.MESSAGE_ID_CMAS_ALERT_EXTREME_IMMEDIATE_LIKELY;
+import static com.android.cellbroadcastservice.SmsCbConstants.MESSAGE_ID_CMAS_ALERT_EXTREME_EXPECTED_OBSERVED;
+import static com.android.cellbroadcastservice.SmsCbConstants.MESSAGE_ID_CMAS_ALERT_EXTREME_EXPECTED_LIKELY;
+import static com.android.cellbroadcastservice.SmsCbConstants.MESSAGE_ID_CMAS_ALERT_SEVERE_IMMEDIATE_OBSERVED;
+import static com.android.cellbroadcastservice.SmsCbConstants.MESSAGE_ID_CMAS_ALERT_SEVERE_IMMEDIATE_LIKELY;
+import static com.android.cellbroadcastservice.SmsCbConstants.MESSAGE_ID_CMAS_ALERT_SEVERE_EXPECTED_OBSERVED;
+import static com.android.cellbroadcastservice.SmsCbConstants.MESSAGE_ID_CMAS_ALERT_SEVERE_EXPECTED_LIKELY;
+import static com.android.cellbroadcastservice.SmsCbConstants.MESSAGE_ID_CMAS_ALERT_CHILD_ABDUCTION_EMERGENCY;
+import static com.android.cellbroadcastservice.SmsCbConstants.MESSAGE_ID_CMAS_ALERT_REQUIRED_MONTHLY_TEST;
+import static com.android.cellbroadcastservice.SmsCbConstants.MESSAGE_ID_CMAS_ALERT_EXERCISE;
+import static com.android.cellbroadcastservice.SmsCbConstants.MESSAGE_ID_CMAS_ALERT_OPERATOR_DEFINED_USE;
 
 /**
  * Open, create, and upgrade the cell broadcast SQLite database. Previously an inner class of
@@ -55,8 +72,9 @@ public class CellBroadcastDatabaseHelper extends SQLiteOpenHelper {
      * Database version 2-9: (reserved for OEM database customization)
      * Database version 10: adds ETWS and CMAS columns and CDMA support
      * Database version 11: adds delivery time index
+     * Datatbase version 12: add slotIndex
      */
-    static final int DATABASE_VERSION = 11;
+    static final int DATABASE_VERSION = 12;
 
     CellBroadcastDatabaseHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
@@ -66,6 +84,7 @@ public class CellBroadcastDatabaseHelper extends SQLiteOpenHelper {
     public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE " + TABLE_NAME + " ("
                 + Telephony.CellBroadcasts._ID + " INTEGER PRIMARY KEY AUTOINCREMENT,"
+                + Telephony.CellBroadcasts.SLOT_INDEX + " INTEGER DEFAULT 0,"
                 + Telephony.CellBroadcasts.GEOGRAPHICAL_SCOPE + " INTEGER,"
                 + Telephony.CellBroadcasts.PLMN + " TEXT,"
                 + Telephony.CellBroadcasts.LAC + " INTEGER,"
@@ -165,6 +184,11 @@ public class CellBroadcastDatabaseHelper extends SQLiteOpenHelper {
             createDeliveryTimeIndex(db);
             oldVersion++;
         }
+
+        if (oldVersion == 11) {
+            db.execSQL("ALTER TABLE " + TABLE_NAME + " ADD COLUMN "
+                    + Telephony.CellBroadcasts.SLOT_INDEX + " INTEGER DEFAULT 0;");
+        }
     }
 
     /**
@@ -199,99 +223,99 @@ public class CellBroadcastDatabaseHelper extends SQLiteOpenHelper {
         int cmasUrgency = SmsCbCmasInfo.CMAS_URGENCY_UNKNOWN;
         int cmasCertainty = SmsCbCmasInfo.CMAS_CERTAINTY_UNKNOWN;
         switch (messageId) {
-            case SmsCbConstants.MESSAGE_ID_ETWS_EARTHQUAKE_WARNING:
+            case MESSAGE_ID_ETWS_EARTHQUAKE_WARNING:
                 etwsWarningType = SmsCbEtwsInfo.ETWS_WARNING_TYPE_EARTHQUAKE;
                 break;
 
-            case SmsCbConstants.MESSAGE_ID_ETWS_TSUNAMI_WARNING:
+            case MESSAGE_ID_ETWS_TSUNAMI_WARNING:
                 etwsWarningType = SmsCbEtwsInfo.ETWS_WARNING_TYPE_TSUNAMI;
                 break;
 
-            case SmsCbConstants.MESSAGE_ID_ETWS_EARTHQUAKE_AND_TSUNAMI_WARNING:
+            case MESSAGE_ID_ETWS_EARTHQUAKE_AND_TSUNAMI_WARNING:
                 etwsWarningType = SmsCbEtwsInfo.ETWS_WARNING_TYPE_EARTHQUAKE_AND_TSUNAMI;
                 break;
 
-            case SmsCbConstants.MESSAGE_ID_ETWS_TEST_MESSAGE:
+            case MESSAGE_ID_ETWS_TEST_MESSAGE:
                 etwsWarningType = SmsCbEtwsInfo.ETWS_WARNING_TYPE_TEST_MESSAGE;
                 break;
 
-            case SmsCbConstants.MESSAGE_ID_ETWS_OTHER_EMERGENCY_TYPE:
+            case MESSAGE_ID_ETWS_OTHER_EMERGENCY_TYPE:
                 etwsWarningType = SmsCbEtwsInfo.ETWS_WARNING_TYPE_OTHER_EMERGENCY;
                 break;
 
-            case SmsCbConstants.MESSAGE_ID_CMAS_ALERT_PRESIDENTIAL_LEVEL:
+            case MESSAGE_ID_CMAS_ALERT_PRESIDENTIAL_LEVEL:
                 cmasMessageClass = SmsCbCmasInfo.CMAS_CLASS_PRESIDENTIAL_LEVEL_ALERT;
                 break;
 
-            case SmsCbConstants.MESSAGE_ID_CMAS_ALERT_EXTREME_IMMEDIATE_OBSERVED:
+            case MESSAGE_ID_CMAS_ALERT_EXTREME_IMMEDIATE_OBSERVED:
                 cmasMessageClass = SmsCbCmasInfo.CMAS_CLASS_EXTREME_THREAT;
                 cmasSeverity = SmsCbCmasInfo.CMAS_SEVERITY_EXTREME;
                 cmasUrgency = SmsCbCmasInfo.CMAS_URGENCY_IMMEDIATE;
                 cmasCertainty = SmsCbCmasInfo.CMAS_CERTAINTY_OBSERVED;
                 break;
 
-            case SmsCbConstants.MESSAGE_ID_CMAS_ALERT_EXTREME_IMMEDIATE_LIKELY:
+            case MESSAGE_ID_CMAS_ALERT_EXTREME_IMMEDIATE_LIKELY:
                 cmasMessageClass = SmsCbCmasInfo.CMAS_CLASS_EXTREME_THREAT;
                 cmasSeverity = SmsCbCmasInfo.CMAS_SEVERITY_EXTREME;
                 cmasUrgency = SmsCbCmasInfo.CMAS_URGENCY_IMMEDIATE;
                 cmasCertainty = SmsCbCmasInfo.CMAS_CERTAINTY_LIKELY;
                 break;
 
-            case SmsCbConstants.MESSAGE_ID_CMAS_ALERT_EXTREME_EXPECTED_OBSERVED:
+            case MESSAGE_ID_CMAS_ALERT_EXTREME_EXPECTED_OBSERVED:
                 cmasMessageClass = SmsCbCmasInfo.CMAS_CLASS_SEVERE_THREAT;
                 cmasSeverity = SmsCbCmasInfo.CMAS_SEVERITY_EXTREME;
                 cmasUrgency = SmsCbCmasInfo.CMAS_URGENCY_EXPECTED;
                 cmasCertainty = SmsCbCmasInfo.CMAS_CERTAINTY_OBSERVED;
                 break;
 
-            case SmsCbConstants.MESSAGE_ID_CMAS_ALERT_EXTREME_EXPECTED_LIKELY:
+            case MESSAGE_ID_CMAS_ALERT_EXTREME_EXPECTED_LIKELY:
                 cmasMessageClass = SmsCbCmasInfo.CMAS_CLASS_SEVERE_THREAT;
                 cmasSeverity = SmsCbCmasInfo.CMAS_SEVERITY_EXTREME;
                 cmasUrgency = SmsCbCmasInfo.CMAS_URGENCY_EXPECTED;
                 cmasCertainty = SmsCbCmasInfo.CMAS_CERTAINTY_LIKELY;
                 break;
 
-            case SmsCbConstants.MESSAGE_ID_CMAS_ALERT_SEVERE_IMMEDIATE_OBSERVED:
+            case MESSAGE_ID_CMAS_ALERT_SEVERE_IMMEDIATE_OBSERVED:
                 cmasMessageClass = SmsCbCmasInfo.CMAS_CLASS_SEVERE_THREAT;
                 cmasSeverity = SmsCbCmasInfo.CMAS_SEVERITY_SEVERE;
                 cmasUrgency = SmsCbCmasInfo.CMAS_URGENCY_IMMEDIATE;
                 cmasCertainty = SmsCbCmasInfo.CMAS_CERTAINTY_OBSERVED;
                 break;
 
-            case SmsCbConstants.MESSAGE_ID_CMAS_ALERT_SEVERE_IMMEDIATE_LIKELY:
+            case MESSAGE_ID_CMAS_ALERT_SEVERE_IMMEDIATE_LIKELY:
                 cmasMessageClass = SmsCbCmasInfo.CMAS_CLASS_SEVERE_THREAT;
                 cmasSeverity = SmsCbCmasInfo.CMAS_SEVERITY_SEVERE;
                 cmasUrgency = SmsCbCmasInfo.CMAS_URGENCY_IMMEDIATE;
                 cmasCertainty = SmsCbCmasInfo.CMAS_CERTAINTY_LIKELY;
                 break;
 
-            case SmsCbConstants.MESSAGE_ID_CMAS_ALERT_SEVERE_EXPECTED_OBSERVED:
+            case MESSAGE_ID_CMAS_ALERT_SEVERE_EXPECTED_OBSERVED:
                 cmasMessageClass = SmsCbCmasInfo.CMAS_CLASS_SEVERE_THREAT;
                 cmasSeverity = SmsCbCmasInfo.CMAS_SEVERITY_SEVERE;
                 cmasUrgency = SmsCbCmasInfo.CMAS_URGENCY_EXPECTED;
                 cmasCertainty = SmsCbCmasInfo.CMAS_CERTAINTY_OBSERVED;
                 break;
 
-            case SmsCbConstants.MESSAGE_ID_CMAS_ALERT_SEVERE_EXPECTED_LIKELY:
+            case MESSAGE_ID_CMAS_ALERT_SEVERE_EXPECTED_LIKELY:
                 cmasMessageClass = SmsCbCmasInfo.CMAS_CLASS_SEVERE_THREAT;
                 cmasSeverity = SmsCbCmasInfo.CMAS_SEVERITY_SEVERE;
                 cmasUrgency = SmsCbCmasInfo.CMAS_URGENCY_EXPECTED;
                 cmasCertainty = SmsCbCmasInfo.CMAS_CERTAINTY_LIKELY;
                 break;
 
-            case SmsCbConstants.MESSAGE_ID_CMAS_ALERT_CHILD_ABDUCTION_EMERGENCY:
+            case MESSAGE_ID_CMAS_ALERT_CHILD_ABDUCTION_EMERGENCY:
                 cmasMessageClass = SmsCbCmasInfo.CMAS_CLASS_CHILD_ABDUCTION_EMERGENCY;
                 break;
 
-            case SmsCbConstants.MESSAGE_ID_CMAS_ALERT_REQUIRED_MONTHLY_TEST:
+            case MESSAGE_ID_CMAS_ALERT_REQUIRED_MONTHLY_TEST:
                 cmasMessageClass = SmsCbCmasInfo.CMAS_CLASS_REQUIRED_MONTHLY_TEST;
                 break;
 
-            case SmsCbConstants.MESSAGE_ID_CMAS_ALERT_EXERCISE:
+            case MESSAGE_ID_CMAS_ALERT_EXERCISE:
                 cmasMessageClass = SmsCbCmasInfo.CMAS_CLASS_CMAS_EXERCISE;
                 break;
 
-            case SmsCbConstants.MESSAGE_ID_CMAS_ALERT_OPERATOR_DEFINED_USE:
+            case MESSAGE_ID_CMAS_ALERT_OPERATOR_DEFINED_USE:
                 cmasMessageClass = SmsCbCmasInfo.CMAS_CLASS_OPERATOR_DEFINED_USE;
                 break;
         }
