@@ -14,9 +14,10 @@
      limitations under the License.
 -->
 
-<resources>
-    <!-- Whether to ignore any alert message in ECBM(Emergency Callback Mode) -->
-    <bool name="ignore_messages_in_ecbm">true</bool>
-    <!-- Whether to disable cell broadcast severe alert when extreme alert is disabled -->
-    <bool name="disable_severe_when_extreme_disabled">false</bool>
+<resources xmlns:android="http://schemas.android.com/apk/res/android"
+           xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+
+    <!-- Preference title for emergency alert history. South Africa uses
+    cell broadcast messages for non-emergency purposes. [CHAR LIMIT=50] -->
+    <string name="emergency_alert_history_title">Cell broadcast history</string>
 </resources>
