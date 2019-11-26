@@ -15,7 +15,7 @@
 -->
 
 <resources>
-    <!-- Whether to always sound CBS alerts at full volume -->
+    <!-- Whether to bypass Do-Not-Disturb/silent mode and play emergency alert tone at full volume. -->
     <bool name="use_full_volume">false</bool>
     <!-- Whether to enable CMAS settings (United States) -->
     <bool name="show_cmas_settings">true</bool>
@@ -27,13 +27,16 @@
     <bool name="duplicate_compare_body">false</bool>
     <!-- Whether to enable audio alert for non emergency broadcasts on FEATURE_WATCH devices -->
     <bool name="watch_enable_non_emergency_audio">false</bool>
-    <!-- Whether to reset alert message duplicate detection after toggling airplane mode -->
-    <bool name="reset_duplicate_detection_on_airplane_mode">false</bool>
     <!-- Whether to show CMAS messages by in a different order than received by prioritizing them -->
     <bool name="show_cmas_messages_in_priority_order">false</bool>
     <!-- Whether to ignore any alert message in ECBM(Emergency Callback Mode) -->
     <bool name="ignore_messages_in_ecbm">false</bool>
-
+    <!-- Show checkbox for Presidential alerts in settings -->
+    <bool name="show_presidential_alerts_in_settings">false</bool>
+    <!-- Whether to display public safety alert settings, some countries/carriers want to enable it by default and not allow users to disable -->
+    <bool name="show_public_safety_settings">true</bool>
+    <!-- Whether to bypass Do-Not-Disturb/silent mode and play emergency alert tone at full volume for presidential alert -->
+    <bool name="full_volume_presidential_alert">false</bool>
     <!-- 4370, 4383 -->
     <string-array name="cmas_presidential_alerts_channels_range_strings" translatable="false">
         <item>0x1112:rat=gsm, emergency=true</item>
