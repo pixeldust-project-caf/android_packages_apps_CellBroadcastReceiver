@@ -15,8 +15,8 @@
 -->
 
 <resources>
-    <!-- Whether to ignore any alert message in ECBM(Emergency Callback Mode) -->
-    <bool name="ignore_messages_in_ecbm">true</bool>
-    <!-- Whether to disable cell broadcast severe alert when extreme alert is disabled -->
-    <bool name="disable_severe_when_extreme_disabled">false</bool>
+    <string-array name="public_safety_messages_channels_range_strings" translatable="false">
+        <!-- Channel 112 are required by Turkey -->
+        <item>0x070:rat=gsm,emergency=true</item>
+    </string-array>
 </resources>
