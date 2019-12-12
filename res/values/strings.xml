@@ -102,6 +102,8 @@
     <string name="notification_channel_broadcast_messages">Broadcast messages</string>
     <!-- Notification channel name for a channel containing emergency alert notifications. [CHAR LIMIT=50] -->
     <string name="notification_channel_emergency_alerts">Emergency alerts</string>
+    <!-- Notification channel name for a channel containing emergency alert notifications during voice call. [CHAR LIMIT=100] -->
+    <string name="notification_channel_broadcast_messages_in_voicecall">Emergency alerts in voice call</string>
 
     <!-- Preference title for enable emergency alerts checkbox. [CHAR LIMIT=50] -->
     <string name="enable_alerts_master_toggle_title">Allow alerts</string>
@@ -156,10 +158,10 @@
     <!-- Preference summary for enable emergency alerts messages checkbox. [CHAR LIMIT=100] -->
     <string name="enable_emergency_alerts_message_summary">Warn about life-threatening events</string>
 
-    <!-- Preference title for required monthly test alert checkbox. [CHAR LIMIT=50] -->
-    <string name="enable_cmas_test_alerts_title">Required monthly test</string>
-    <!-- Preference summary for enable required monthly test alerts checkbox. [CHAR LIMIT=100] -->
-    <string name="enable_cmas_test_alerts_summary">Receive test messages for the safety alert system</string>
+    <!-- Preference title for other test alerts checkbox. [CHAR LIMIT=50] -->
+    <string name="enable_cmas_test_alerts_title">Other tests</string>
+    <!-- Preference summary for other test alerts checkbox. [CHAR LIMIT=100] -->
+    <string name="enable_cmas_test_alerts_summary">Receive carrier tests and monthly tests from the safety alert system</string>
 
     <!-- Preference title for CMAS vibration on/off. [CHAR LIMIT=50] -->
     <string name="enable_alert_vibrate_title">Vibration</string>
@@ -284,4 +286,15 @@
     <string name="enable_cmas_presidential_alerts_title">Presidential alerts</string>
     <!-- Preference summary for enable presidential threat alerts checkbox. [CHAR LIMIT=100] -->
     <string name="enable_cmas_presidential_alerts_summary">National warning messages issued by the President. Can\'t be turned off.</string>
+
+    <!-- Show additional language on/off switch in settings -->
+    <!-- Preference title for enable CMAS second language checkbox. [CHAR LIMIT=50] -->
+    <string name="receive_cmas_in_second_language_title"></string>
+    <!-- Preference summary for enable CMAS second language checkbox. [CHAR LIMIT=100] -->
+    <string name="receive_cmas_in_second_language_summary"></string>
+
+    <!-- Toast message to indicate testing mode is enabled. [CHAR LIMIT=100] -->
+    <string name="testing_mode_enabled">Cell broadcast testing mode is enabled.</string>
+    <!-- Toast message to indicate testing mode is disabled. [CHAR LIMIT=100] -->
+    <string name="testing_mode_disabled">Cell broadcast testing mode is disabled.</string>
 </resources>

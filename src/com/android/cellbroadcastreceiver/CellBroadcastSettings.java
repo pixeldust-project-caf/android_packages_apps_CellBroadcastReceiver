@@ -19,7 +19,6 @@ package com.android.cellbroadcastreceiver;
 import android.annotation.NonNull;
 import android.app.ActionBar;
 import android.app.Activity;
-import android.app.Fragment;
 import android.app.backup.BackupManager;
 import android.content.Context;
 import android.content.Intent;
@@ -127,6 +126,12 @@ public class CellBroadcastSettings extends Activity {
     // Resource cache
     private static final Map<Integer, Resources> sResourcesCache = new HashMap<>();
 
+    // Whether to receive alert in second language code
+    public static final String KEY_RECEIVE_CMAS_IN_SECOND_LANGUAGE =
+            "receive_cmas_in_second_language";
+
+    private boolean mCellBroadcastAllowed = true;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -140,13 +145,19 @@ public class CellBroadcastSettings extends Activity {
         UserManager userManager = (UserManager) getSystemService(Context.USER_SERVICE);
         if (userManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_CELL_BROADCASTS)) {
             setContentView(R.layout.cell_broadcast_disallowed_preference_screen);
+            mCellBroadcastAllowed = false;
             return;
         }
+    }
 
-        // We only add new CellBroadcastSettingsFragment if no fragment is restored.
-        Fragment fragment = getFragmentManager().findFragmentById(android.R.id.content);
-        if (fragment == null) {
-            getFragmentManager().beginTransaction().add(android.R.id.content,
+    @Override
+    public void onResume() {
+        super.onResume();
+
+        if (mCellBroadcastAllowed) {
+            // Always create a new fragment and replace it. We would like to dynamically change the
+            // menu, for example, after toggling testing mode via dialing *#*#CMAS#*#*.
+            getFragmentManager().beginTransaction().replace(android.R.id.content,
                     new CellBroadcastSettingsFragment()).commit();
         }
     }
@@ -191,6 +202,9 @@ public class CellBroadcastSettings extends Activity {
         // Show checkbox for Presidential alerts in settings
         private TwoStatePreference mPresidentialCheckBox;
 
+        // on/off switch in settings for receiving alert in second language code
+        private TwoStatePreference mReceiveCmasInSecondLanguageCheckBox;
+
         @Override
         public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
 
@@ -231,6 +245,8 @@ public class CellBroadcastSettings extends Activity {
             mAlertHistory = findPreference(KEY_EMERGENCY_ALERT_HISTORY);
             mDevSettingCategory = (PreferenceCategory)
                     findPreference(KEY_CATEGORY_DEV_SETTINGS);
+            mReceiveCmasInSecondLanguageCheckBox = (TwoStatePreference) findPreference
+                    (KEY_RECEIVE_CMAS_IN_SECOND_LANGUAGE);
 
             // Show checkbox for Presidential alerts in settings
             mPresidentialCheckBox = (TwoStatePreference)
@@ -456,6 +472,14 @@ public class CellBroadcastSettings extends Activity {
                         });
             }
 
+            // Do not show additional language settings is no additional language code specified,
+            if (res.getString(R.string.emergency_alert_second_language_code).isEmpty()) {
+                if (mAlertPreferencesCategory != null) {
+                    mAlertPreferencesCategory.removePreference(
+                            mReceiveCmasInSecondLanguageCheckBox);
+                }
+            }
+
             // Show checkbox for Presidential alerts in settings
             if (!res.getBoolean(R.bool.show_presidential_alerts_in_settings)) {
                 if (mAlertCategory != null) {
@@ -556,7 +580,8 @@ public class CellBroadcastSettings extends Activity {
                 || !channelManager.getCellBroadcastChannelRanges(
                 R.array.etws_test_alerts_range_strings).isEmpty();
 
-        return res.getBoolean(R.bool.show_test_settings) && isTestAlertsAvailable;
+        return (res.getBoolean(R.bool.show_test_settings) || CellBroadcastReceiver.isTestingMode())
+                && isTestAlertsAvailable;
     }
 
      public static boolean isAreaUpdateInfoSettingsEnabled(Context context) {
