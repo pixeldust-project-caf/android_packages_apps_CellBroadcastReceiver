@@ -158,6 +158,25 @@ public class SendGsmCmasMessages {
         sendBroadcast(activity, cbMessage);
     }
 
+    public static void testSendCmasExerciseTest(
+            Activity activity, int serialNumber, boolean isAdditionalLang) {
+        SmsCbMessage cbMessage =
+                createCmasSmsMessage(
+                        isAdditionalLang
+                                ? SmsCbConstants
+                                .MESSAGE_ID_CMAS_ALERT_EXERCISE_LANGUAGE
+                                : SmsCbConstants.MESSAGE_ID_CMAS_ALERT_EXERCISE,
+                        serialNumber,
+                        "en",
+                        MONTHLY_TEST_ALERT,
+                        SmsCbCmasInfo.CMAS_SEVERITY_UNKNOWN,
+                        SmsCbCmasInfo.CMAS_URGENCY_UNKNOWN,
+                        SmsCbCmasInfo.CMAS_CERTAINTY_UNKNOWN,
+                        SmsCbMessage.MESSAGE_PRIORITY_EMERGENCY);
+
+        sendBroadcast(activity, cbMessage);
+    }
+
     public static void testSendPublicSafetyMessagesAlert(
             Activity activity, int serialNumber, boolean isAdditionalLang) {
         SmsCbMessage cbMessage =
@@ -218,7 +237,7 @@ public class SendGsmCmasMessages {
                         certainty);
         return new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP, 0, serialNumber,
                 new SmsCbLocation("123456"), serviceCategory, language, body,
-                priority, null, cmasInfo, 0/*slotIndex*/);
+                priority, null, cmasInfo, 0, 1);
     }
 
     /**
