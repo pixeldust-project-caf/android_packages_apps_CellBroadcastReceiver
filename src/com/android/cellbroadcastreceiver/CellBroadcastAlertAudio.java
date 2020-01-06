@@ -47,6 +47,7 @@ import android.text.TextUtils;
 import android.util.Log;
 
 import com.android.cellbroadcastreceiver.CellBroadcastAlertService.AlertType;
+import com.android.internal.annotations.VisibleForTesting;
 
 import java.util.Locale;
 
@@ -59,7 +60,8 @@ public class CellBroadcastAlertAudio extends Service implements TextToSpeech.OnI
     private static final String TAG = "CellBroadcastAlertAudio";
 
     /** Action to start playing alert audio/vibration/speech. */
-    static final String ACTION_START_ALERT_AUDIO = "ACTION_START_ALERT_AUDIO";
+    @VisibleForTesting
+    public static final String ACTION_START_ALERT_AUDIO = "ACTION_START_ALERT_AUDIO";
 
     /** Extra for message body to speak (if speech enabled in settings). */
     public static final String ALERT_AUDIO_MESSAGE_BODY =
@@ -80,6 +82,10 @@ public class CellBroadcastAlertAudio extends Service implements TextToSpeech.OnI
     /** Extra for always sound alerts at full volume. */
     public static final String ALERT_AUDIO_FULL_VOLUME_EXTRA =
             "com.android.cellbroadcastreceiver.ALERT_FULL_VOLUME_EXTRA";
+
+    /** Extra for cutomized alert duration in ms. */
+    public static final String ALERT_AUDIO_DURATION =
+            "com.android.cellbroadcastreceiver.ALERT_AUDIO_DURATION";
 
     /** Extra for alert subscription index */
     public static final String ALERT_AUDIO_SUB_INDEX =
@@ -111,6 +117,7 @@ public class CellBroadcastAlertAudio extends Service implements TextToSpeech.OnI
     private boolean mResetAlarmVolumeNeeded;
     private int mUserSetAlarmVolume;
     private int[] mVibrationPattern;
+    private int mAlertDuration = -1;
 
     private Vibrator mVibrator;
     private MediaPlayer mMediaPlayer;
@@ -292,6 +299,8 @@ public class CellBroadcastAlertAudio extends Service implements TextToSpeech.OnI
         mEnableVibrate = prefs.getBoolean(CellBroadcastSettings.KEY_ENABLE_ALERT_VIBRATE, true);
         // retrieve the vibration patterns.
         mVibrationPattern = intent.getIntArrayExtra(ALERT_AUDIO_VIBRATION_PATTERN_EXTRA);
+        // retrieve the customized alert duration. -1 means play the alert with the tone's duration.
+        mAlertDuration = intent.getIntExtra(ALERT_AUDIO_DURATION, -1);
         // retrieve the alert type
         mAlertType = AlertType.DEFAULT;
         if (intent.getSerializableExtra(ALERT_AUDIO_TONE_TYPE) != null) {
@@ -366,7 +375,7 @@ public class CellBroadcastAlertAudio extends Service implements TextToSpeech.OnI
 
         // Get the alert tone duration. Negative tone duration value means we only play the tone
         // once, not repeat it.
-        int customAlertDuration = res.getInteger(R.integer.alert_duration);
+        int customAlertDuration = mAlertDuration;
 
         // Start the vibration first.
         if (mEnableVibrate) {
