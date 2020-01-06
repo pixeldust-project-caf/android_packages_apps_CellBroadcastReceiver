@@ -180,7 +180,7 @@ public class CellBroadcastSearchIndexableProvider extends SearchIndexablesProvid
             cursor.addRow(ref);
         }
 
-        if (!Resources.getSystem().getBoolean(R.bool.show_presidential_alerts_in_settings)) {
+        if (!res.getBoolean(R.bool.show_presidential_alerts_in_settings)) {
             ref = new Object[1];
             ref[COLUMN_INDEX_NON_INDEXABLE_KEYS_KEY_VALUE] =
                     CellBroadcastSettings.KEY_ENABLE_CMAS_PRESIDENTIAL_ALERTS;
@@ -231,7 +231,13 @@ public class CellBroadcastSearchIndexableProvider extends SearchIndexablesProvid
         if (!CellBroadcastSettings.isTestAlertsToggleVisible(getContext())) {
             ref = new Object[1];
             ref[COLUMN_INDEX_NON_INDEXABLE_KEYS_KEY_VALUE] =
-                    CellBroadcastSettings.KEY_ENABLE_TEST_ALERTS;
+                CellBroadcastSettings.KEY_ENABLE_TEST_ALERTS;
+        }
+
+        if (res.getString(R.string.emergency_alert_second_language_code).isEmpty()) {
+            ref = new Object[1];
+            ref[COLUMN_INDEX_NON_INDEXABLE_KEYS_KEY_VALUE] =
+                    CellBroadcastSettings.KEY_RECEIVE_CMAS_IN_SECOND_LANGUAGE;
             cursor.addRow(ref);
         }
 
