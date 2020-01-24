@@ -65,9 +65,6 @@ public class CellBroadcastSettings extends Activity {
     // Enable vibration on alert (unless master volume is silent).
     public static final String KEY_ENABLE_ALERT_VIBRATE = "enable_alert_vibrate";
 
-    // Speak contents of alert after playing the alert sound.
-    public static final String KEY_ENABLE_ALERT_SPEECH = "enable_alert_speech";
-
     // Always play at full volume when playing the alert sound.
     public static final String KEY_USE_FULL_VOLUME = "use_full_volume";
 
@@ -185,7 +182,6 @@ public class CellBroadcastSettings extends Activity {
         private TwoStatePreference mPublicSafetyMessagesChannelCheckBox;
         private TwoStatePreference mEmergencyAlertsCheckBox;
         private ListPreference mReminderInterval;
-        private TwoStatePreference mSpeechCheckBox;
         private TwoStatePreference mFullVolumeCheckBox;
         private TwoStatePreference mAreaUpdateInfoCheckBox;
         private TwoStatePreference mTestCheckBox;
@@ -232,8 +228,6 @@ public class CellBroadcastSettings extends Activity {
                     findPreference(KEY_ENABLE_EMERGENCY_ALERTS);
             mReminderInterval = (ListPreference)
                     findPreference(KEY_ALERT_REMINDER_INTERVAL);
-            mSpeechCheckBox = (TwoStatePreference)
-                    findPreference(KEY_ENABLE_ALERT_SPEECH);
             mFullVolumeCheckBox = (TwoStatePreference)
                     findPreference(KEY_USE_FULL_VOLUME);
             mAreaUpdateInfoCheckBox = (TwoStatePreference)
@@ -353,13 +347,53 @@ public class CellBroadcastSettings extends Activity {
                 }
             }
 
-            // Remove preferences
+            // Remove all cmas preferences
             if (!res.getBoolean(R.bool.show_cmas_settings)) {
                 // Remove CMAS preference items in emergency alert category.
                 if (mAlertCategory != null) {
                     if (mExtremeCheckBox != null) mAlertCategory.removePreference(mExtremeCheckBox);
                     if (mSevereCheckBox != null) mAlertCategory.removePreference(mSevereCheckBox);
                     if (mAmberCheckBox != null) mAlertCategory.removePreference(mAmberCheckBox);
+                }
+            }
+
+            // Remove each individual settings if no channel configured
+            if (channelManager.getCellBroadcastChannelRanges(
+                    R.array.cmas_alert_extreme_channels_range_strings).isEmpty()) {
+                // Remove extreme alert preference
+                if (mAlertCategory != null) {
+                    if (mExtremeCheckBox != null) {
+                        mAlertCategory.removePreference(mExtremeCheckBox);
+                    }
+                }
+            }
+
+            if (channelManager.getCellBroadcastChannelRanges(
+                    R.array.cmas_alerts_severe_range_strings).isEmpty()) {
+                // Remove severe alert preference
+                if (mAlertCategory != null) {
+                    if (mSevereCheckBox != null) {
+                        mAlertCategory.removePreference(mSevereCheckBox);
+                    }
+                }
+            }
+
+            if (channelManager.getCellBroadcastChannelRanges(
+                    R.array.cmas_amber_alerts_channels_range_strings).isEmpty()) {
+                // Remove amber alert preference
+                if (mAlertCategory != null) {
+                    if (mAmberCheckBox != null) {
+                        mAlertCategory.removePreference(mAmberCheckBox);
+                    }
+                }
+            }
+
+            // Remove preferences
+            if (res.getBoolean(R.bool.always_use_full_volume)) {
+                // Remove full volume preference items in emergency alert category.
+                if (mAlertCategory != null) {
+                    if (mExtremeCheckBox != null) mAlertCategory.removePreference(
+                            mFullVolumeCheckBox);
                 }
             }
 
@@ -450,7 +484,7 @@ public class CellBroadcastSettings extends Activity {
                     && !sp.getBoolean(KEY_USE_FULL_VOLUME_SETTINGS_CHANGED, false)) {
                 // If the user hasn't changed this settings yet, use the default settings from
                 // resource overlay.
-                mFullVolumeCheckBox.setChecked(res.getBoolean(R.bool.use_full_volume));
+                mFullVolumeCheckBox.setChecked(res.getBoolean(R.bool.use_full_volume_default));
                 mFullVolumeCheckBox.setOnPreferenceChangeListener(
                         (pref, newValue) -> {
                             sp.edit().putBoolean(KEY_USE_FULL_VOLUME_SETTINGS_CHANGED,

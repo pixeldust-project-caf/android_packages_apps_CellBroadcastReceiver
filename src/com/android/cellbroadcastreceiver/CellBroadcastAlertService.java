@@ -63,7 +63,8 @@ public class CellBroadcastAlertService extends Service {
     private static final String TAG = "CBAlertService";
 
     /** Intent action to display alert dialog/notification, after verifying the alert is new. */
-    static final String SHOW_NEW_ALERT_ACTION = "cellbroadcastreceiver.SHOW_NEW_ALERT";
+    @VisibleForTesting
+    public static final String SHOW_NEW_ALERT_ACTION = "cellbroadcastreceiver.SHOW_NEW_ALERT";
 
     /** Identifier for getExtra() when adding this object to an Intent. */
     public static final String SMS_CB_MESSAGE_EXTRA =
@@ -563,18 +564,18 @@ public class CellBroadcastAlertService extends Service {
 
         String messageBody = message.getMessageBody();
 
-        if (prefs.getBoolean(CellBroadcastSettings.KEY_ENABLE_ALERT_SPEECH, true)) {
-            audioIntent.putExtra(CellBroadcastAlertAudio.ALERT_AUDIO_MESSAGE_BODY, messageBody);
+        audioIntent.putExtra(CellBroadcastAlertAudio.ALERT_AUDIO_MESSAGE_BODY, messageBody);
 
-            String language = message.getLanguageCode();
+        String language = message.getLanguageCode();
 
-            Log.d(TAG, "Message language = " + language);
-            audioIntent.putExtra(CellBroadcastAlertAudio.ALERT_AUDIO_MESSAGE_LANGUAGE,
-                    language);
-        }
+        Log.d(TAG, "Message language = " + language);
+        audioIntent.putExtra(CellBroadcastAlertAudio.ALERT_AUDIO_MESSAGE_LANGUAGE,
+                language);
 
         audioIntent.putExtra(CellBroadcastAlertAudio.ALERT_AUDIO_SUB_INDEX,
                 message.getSubscriptionId());
+        audioIntent.putExtra(CellBroadcastAlertAudio.ALERT_AUDIO_DURATION,
+                (range != null) ? range.mAlertDuration : -1);
         startService(audioIntent);
 
         ArrayList<SmsCbMessage> messageList = new ArrayList<>();
