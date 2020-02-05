@@ -47,7 +47,7 @@
     <string name="cb_other_message_identifiers" msgid="5790068194529377210">"رسائل البث"</string>
     <string name="public_safety_message" msgid="9119928798786998252">"رسالة السلامة العامة"</string>
     <string name="state_local_test_alert" msgid="8003145745857480200">"اختبار الولاية/الاختبار المحلي"</string>
-    <string name="emergency_alert" msgid="624783871477634263">"إنذار الطوارئ"</string>
+    <string name="emergency_alert" msgid="624783871477634263">"تحذير طارئ"</string>
     <string name="emergency_alerts_title" msgid="6605036374197485429">"التنبيهات"</string>
     <string name="notification_channel_broadcast_messages" msgid="880704362482824524">"رسائل البث"</string>
     <string name="notification_channel_emergency_alerts" msgid="5008287980979183617">"إنذارات الطوارئ"</string>
@@ -76,11 +76,8 @@
     <string name="enable_cmas_test_alerts_title" msgid="7194966927004755266">"تنبيهات اختبارية"</string>
     <string name="enable_cmas_test_alerts_summary" msgid="2083089933271720217">"تلقّي اختبارات مشغّل شبكة الجوّال والاختبارات الشهرية من نظام تنبيهات السلامة"</string>
     <string name="enable_alert_vibrate_title" msgid="5421032189422312508">"الاهتزاز"</string>
-    <string name="use_full_volume_title" msgid="8581439612945182255">"استخدام مستوى الصوت الكامل"</string>
-    <string name="use_full_volume_summary" msgid="3560764277281704697">"تجاهل الإعدادات الأخرى لمستوى الصوت وخيار \"عدم الإزعاج\""</string>
     <string name="enable_area_update_info_alerts_title" msgid="3442042268424617226">"عمليات بث معلومات التحديث المتعلقة بالمنطقة"</string>
     <string name="enable_area_update_info_alerts_summary" msgid="6437816607144264910">"‏إظهار معلومات التحديث في حالة SIM"</string>
-    <string name="category_dev_settings_title" msgid="6194393458398329994">"خيارات مطور البرامج"</string>
     <string name="cmas_category_heading" msgid="3923503130776640717">"فئة التنبيه:"</string>
     <string name="cmas_category_geo" msgid="4979494217069688527">"جيوفيزيائي"</string>
     <string name="cmas_category_met" msgid="7563732573851773537">"الأرصاد الجوية"</string>

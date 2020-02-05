@@ -27,12 +27,12 @@ import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.Intent;
 import android.content.res.Resources;
+import android.media.AudioManager;
 import android.telephony.CarrierConfigManager;
 import android.telephony.SubscriptionManager;
 import android.test.ServiceTestCase;
-import android.util.Log;
 
-import com.android.cellbroadcastreceiver.unit.MockedServiceManager;
+import com.android.cellbroadcastreceiver.CellBroadcastSettings;
 import com.android.internal.telephony.ISub;
 
 import org.junit.After;
@@ -48,6 +48,8 @@ public abstract class CellBroadcastServiceTestCase<T extends Service> extends Se
     Resources mResources;
     @Mock
     protected ISub.Stub mSubService;
+    @Mock
+    protected AudioManager mMockedAudioManager;
 
     MockedServiceManager mMockedServiceManager;
 
@@ -97,11 +99,12 @@ public abstract class CellBroadcastServiceTestCase<T extends Service> extends Se
 
         @Override
         public Object getSystemService(String name) {
-            if (name.equals(Context.CARRIER_CONFIG_SERVICE)) {
-                Log.d(TAG, "return mocked svc for " + name + ", " + mMockedCarrierConfigManager);
-                return mMockedCarrierConfigManager;
+            switch (name) {
+                case Context.CARRIER_CONFIG_SERVICE:
+                    return mMockedCarrierConfigManager;
+                case Context.AUDIO_SERVICE:
+                    return mMockedAudioManager;
             }
-            Log.d(TAG, "return real service " + name);
             return super.getSystemService(name);
         }
     }
@@ -121,6 +124,7 @@ public abstract class CellBroadcastServiceTestCase<T extends Service> extends Se
         mMockedServiceManager.replaceService("isub", mSubService);
         mContext = new TestContextWrapper(getContext());
         setContext(mContext);
+        CellBroadcastSettings.setUseResourcesForSubId(false);
     }
 
     @After
