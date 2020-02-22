@@ -22,6 +22,7 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -94,12 +95,6 @@ public class CellBroadcastAlertService extends Service
      */
     static final String NOTIFICATION_CHANNEL_EMERGENCY_ALERTS_IN_VOICECALL =
         "broadcastMessagesInVoiceCall";
-
-    /** Sticky broadcast for latest area info broadcast received. */
-    static final String CB_AREA_INFO_RECEIVED_ACTION =
-            "com.android.cellbroadcastreceiver.CB_AREA_INFO_RECEIVED";
-
-    static final String SETTINGS_APP = "com.android.settings";
 
     /** System property to enable/disable broadcast duplicate detecion. */
     private static final String CB_DUP_DETECTION = "persist.vendor.cb.dup_detection";
@@ -302,6 +297,19 @@ public class CellBroadcastAlertService extends Service
                 });
     }
 
+    /**
+     * Mark the message as displayed in cell broadcast service's database.
+     *
+     * @param message The cell broadcast message.
+     */
+    private void markMessageDisplayed(SmsCbMessage message) {
+        ContentValues cv = new ContentValues();
+        cv.put(Telephony.CellBroadcasts.MESSAGE_DISPLAYED, 1);
+        mContext.getContentResolver().update(Telephony.CellBroadcasts.CONTENT_URI, cv,
+                Telephony.CellBroadcasts.RECEIVED_TIME + "=?",
+                new String[] {Long.toString(message.getReceivedTime())});
+    }
+
     private void showNewAlert(Intent intent) {
         Bundle extras = intent.getExtras();
         if (extras == null) {
@@ -322,6 +330,10 @@ public class CellBroadcastAlertService extends Service
             Log.d(TAG, "CMAS received in dialing/during voicecall.");
             sRemindAfterCallFinish = true;
         }
+
+        // Either shown the dialog, adding it to notification (non emergency, or delayed emergency),
+        // mark the message as displayed to the user.
+        markMessageDisplayed(cbm);
 
         CellBroadcastChannelManager channelManager = new CellBroadcastChannelManager(
                 mContext, cbm.getSubscriptionId());
@@ -354,11 +366,6 @@ public class CellBroadcastAlertService extends Service
         boolean forceDisableEtwsCmasTest =
                 CellBroadcastSettings.isFeatureEnabled(this,
                         CarrierConfigManager.KEY_CARRIER_FORCE_DISABLE_ETWS_CMAS_TEST_BOOL, false);
-
-        boolean enableAreaUpdateInfoAlerts =
-                CellBroadcastSettings.isAreaUpdateInfoSettingsEnabled(getApplicationContext())
-                && prefs.getBoolean(CellBroadcastSettings.KEY_ENABLE_AREA_UPDATE_INFO_ALERTS,
-                true);
 
         SmsCbEtwsInfo etwsInfo = message.getEtwsWarningInfo();
         if (etwsInfo != null
@@ -395,26 +402,7 @@ public class CellBroadcastAlertService extends Service
                     return false;
                 }
 
-                // The area update information cell broadcast should not cause any pop-up.
-                // Instead the setting's app SIM status will show its information.
-                if (range.mAlertType == AlertType.AREA) {
-                    if (enableAreaUpdateInfoAlerts) {
-                        // save latest area info broadcast for Settings display and send as
-                        // broadcast.
-                        CellBroadcastReceiverApp.setLatestAreaInfo(message);
-                        Intent intent = new Intent(CB_AREA_INFO_RECEIVED_ACTION);
-                        intent.setPackage(SETTINGS_APP);
-                        intent.putExtra(EXTRA_MESSAGE, message);
-                        // Send broadcast twice, once for apps that have PRIVILEGED permission
-                        // and once for those that have the runtime one.
-                        sendBroadcastAsUser(intent, UserHandle.ALL,
-                                android.Manifest.permission.READ_PRIVILEGED_PHONE_STATE);
-                        sendBroadcastAsUser(intent, UserHandle.ALL,
-                                android.Manifest.permission.READ_PHONE_STATE);
-                        // area info broadcasts are displayed in Settings status screen
-                    }
-                    return false;
-                } else if (range.mAlertType == AlertType.TEST) {
+                if (range.mAlertType == AlertType.TEST) {
                     return emergencyAlertEnabled
                             && CellBroadcastSettings.isTestAlertsToggleVisible(
                                     getApplicationContext())
