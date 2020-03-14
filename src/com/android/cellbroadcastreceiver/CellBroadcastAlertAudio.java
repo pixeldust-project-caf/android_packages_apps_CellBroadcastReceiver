@@ -42,7 +42,6 @@ import android.os.Message;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.preference.PreferenceManager;
-import android.provider.Settings;
 import android.speech.tts.TextToSpeech;
 import android.telephony.PhoneStateListener;
 import android.telephony.SubscriptionManager;
@@ -199,6 +198,7 @@ public class CellBroadcastAlertAudio extends Service implements TextToSpeech.OnI
             // Stop the alert sound and speech if the call state changes.
             if (state != TelephonyManager.CALL_STATE_IDLE
                     && state != mInitialCallState) {
+                if (DBG) log("Call interrupted. Stop CellBroadcastAlertAudio service");
                 stopSelf();
             }
         }
@@ -254,6 +254,7 @@ public class CellBroadcastAlertAudio extends Service implements TextToSpeech.OnI
             // When we reach here, it could be TTS completed or TTS was cut due to another
             // new alert started playing. We don't want to stop the service in the later case.
             if (mState == STATE_SPEAKING) {
+                if (DBG) log("TTS completed. Stop CellBroadcastAlertAudio service");
                 stopSelf();
             }
         }
@@ -271,6 +272,7 @@ public class CellBroadcastAlertAudio extends Service implements TextToSpeech.OnI
     @Override
     public void onDestroy() {
         // stop audio, vibration and TTS
+        if (DBG) log("onDestroy");
         stop();
         // Stop listening for incoming calls.
         mTelephonyManager.listen(mPhoneStateListener, LISTEN_NONE);
@@ -300,6 +302,7 @@ public class CellBroadcastAlertAudio extends Service implements TextToSpeech.OnI
     public int onStartCommand(Intent intent, int flags, int startId) {
         // No intent, tell the system not to restart us.
         if (intent == null) {
+            if (DBG) log("Null intent. Stop CellBroadcastAlertAudio service");
             stopSelf();
             return START_NOT_STICKY;
         }
@@ -364,6 +367,7 @@ public class CellBroadcastAlertAudio extends Service implements TextToSpeech.OnI
         if (mEnableAudio || mEnableVibrate) {
             playAlertTone(mAlertType, mVibrationPattern);
         } else {
+            if (DBG) log("No audio/vibrate playing. Stop CellBroadcastAlertAudio service");
             stopSelf();
             return START_NOT_STICKY;
         }
@@ -476,11 +480,7 @@ public class CellBroadcastAlertAudio extends Service implements TextToSpeech.OnI
                         setDataSourceFromResource(res, mMediaPlayer, R.raw.etws_default);
                         break;
                     case INFO:
-                        // for non-emergency alerts, we are using system default notification sound.
-                        String sound = Settings.System.getString(
-                                getApplicationContext().getContentResolver(),
-                                Settings.System.NOTIFICATION_SOUND);
-                        mMediaPlayer.setDataSource(sound);
+                        setDataSourceFromResource(res, mMediaPlayer, R.raw.info);
                         break;
                     case TEST:
                     case DEFAULT:
