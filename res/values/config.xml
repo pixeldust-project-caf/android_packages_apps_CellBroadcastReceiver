@@ -136,4 +136,7 @@
         <item>1000</item>
     </integer-array>
     <bool name="config_showAreaUpdateInfoSettings">false</bool>
+
+    <!-- Whether the emergency alert notification is non-swipeable -->
+    <bool name="non_swipeable_notificaiton">false</bool>
 </resources>
