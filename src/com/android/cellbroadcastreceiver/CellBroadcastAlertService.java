@@ -16,6 +16,10 @@
 
 package com.android.cellbroadcastreceiver;
 
+import static android.telephony.SmsCbMessage.MESSAGE_FORMAT_3GPP;
+import static android.telephony.SmsCbMessage.MESSAGE_FORMAT_3GPP2;
+
+import android.annotation.NonNull;
 import android.app.ActivityManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -30,6 +34,7 @@ import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.media.AudioAttributes;
 import android.media.AudioManager;
+import android.net.Uri;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
@@ -50,6 +55,7 @@ import android.text.TextUtils;
 import android.util.Log;
 
 import com.android.cellbroadcastreceiver.CellBroadcastChannelManager.CellBroadcastChannelRange;
+import com.android.cellbroadcastservice.CellBroadcastStatsLog;
 import com.android.internal.annotations.VisibleForTesting;
 
 import java.util.ArrayList;
@@ -277,6 +283,16 @@ public class CellBroadcastAlertService extends Service
             return;
         }
 
+        if (message.getMessageFormat() == MESSAGE_FORMAT_3GPP) {
+            CellBroadcastStatsLog.write(CellBroadcastStatsLog.CB_MESSAGE_REPORTED,
+                    CellBroadcastStatsLog.CELL_BROADCAST_MESSAGE_REPORTED__TYPE__GSM,
+                    CellBroadcastStatsLog.CELL_BROADCAST_MESSAGE_REPORTED__SOURCE__CB_RECEIVER_APP);
+        } else if (message.getMessageFormat() == MESSAGE_FORMAT_3GPP2) {
+            CellBroadcastStatsLog.write(CellBroadcastStatsLog.CB_MESSAGE_REPORTED,
+                    CellBroadcastStatsLog.CELL_BROADCAST_MESSAGE_REPORTED__TYPE__CDMA,
+                    CellBroadcastStatsLog.CELL_BROADCAST_MESSAGE_REPORTED__SOURCE__CB_RECEIVER_APP);
+        }
+
         if (!shouldDisplayMessage(message)) {
             return;
         }
@@ -291,6 +307,22 @@ public class CellBroadcastAlertService extends Service
                     if (provider.insertNewBroadcast(message)) {
                         // new message, show the alert or notification on UI thread
                         startService(alertIntent);
+                        // mark the message as displayed to the user.
+                        markMessageDisplayed(message);
+                        if (CellBroadcastSettings.getResources(mContext,
+                                message.getSubscriptionId())
+                                .getBoolean(R.bool.enable_write_alerts_to_sms_inbox)) {
+                            // TODO: Should not create the instance of channel manager everywhere.
+                            CellBroadcastChannelManager channelManager =
+                                    new CellBroadcastChannelManager(mContext,
+                                            message.getSubscriptionId());
+                            CellBroadcastChannelRange range = channelManager
+                                    .getCellBroadcastChannelRangeFromMessage(message);
+                            if (CellBroadcastReceiver.isTestingMode(getApplicationContext())
+                                    || range.mWriteToSmsInbox) {
+                                writeMessageToSmsInbox(message);
+                            }
+                        }
                         return true;
                     } else {
                         return false;
@@ -333,9 +365,6 @@ public class CellBroadcastAlertService extends Service
         }
 
         // Either shown the dialog, adding it to notification (non emergency, or delayed emergency),
-        // mark the message as displayed to the user.
-        markMessageDisplayed(cbm);
-
         CellBroadcastChannelManager channelManager = new CellBroadcastChannelManager(
                 mContext, cbm.getSubscriptionId());
         if (channelManager.isEmergencyMessage(cbm) && !sRemindAfterCallFinish) {
@@ -824,6 +853,31 @@ public class CellBroadcastAlertService extends Service
                 }
             }
             CellBroadcastReceiverApp.clearNewMessageList();
+        }
+    }
+
+    /**
+     * Write displayed cellbroadcast messages to sms inbox
+     *
+     * @param message The cell broadcast message.
+     */
+    private void writeMessageToSmsInbox(@NonNull SmsCbMessage message) {
+        // composing SMS
+        ContentValues cv = new ContentValues();
+        cv.put(Telephony.Sms.Inbox.BODY, message.getMessageBody());
+        cv.put(Telephony.Sms.Inbox.DATE, message.getReceivedTime());
+        cv.put(Telephony.Sms.Inbox.SUBSCRIPTION_ID, message.getSubscriptionId());
+        cv.put(Telephony.Sms.Inbox.SUBJECT, CellBroadcastResources.getDialogTitleResource(mContext,
+                message));
+        cv.put(Telephony.Sms.Inbox.ADDRESS, mContext.getString(R.string.sms_cb_sender_name));
+        // store all cellbroadcast messages in the same thread.
+        cv.put(Telephony.Sms.Inbox.THREAD_ID, Telephony.Threads.getOrCreateThreadId(mContext,
+                mContext.getString(R.string.sms_cb_sender_name)));
+        Uri uri = mContext.getContentResolver().insert(Telephony.Sms.Inbox.CONTENT_URI, cv);
+        if (uri == null) {
+            Log.e(TAG, "writeMessageToSmsInbox: failed");
+        } else {
+            Log.d(TAG, "writeMessageToSmsInbox: succeed uri = " + uri);
         }
     }
 }
