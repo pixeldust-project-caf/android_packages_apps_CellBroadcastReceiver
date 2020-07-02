@@ -16,7 +16,6 @@
 
 package com.android.cellbroadcastreceiver.unit;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
@@ -27,11 +26,8 @@ import static org.mockito.Mockito.verify;
 
 import android.app.Notification;
 import android.app.NotificationManager;
-import android.content.ClipboardManager;
-import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.res.Resources;
 import android.os.Bundle;
 import android.os.IPowerManager;
 import android.os.IThermalService;
@@ -230,34 +226,6 @@ public class CellBroadcastAlertDialogTest extends
 
         verify(mMockedNotificationManager, atLeastOnce()).cancel(
                 eq(CellBroadcastAlertService.NOTIFICATION_ID));
-    }
-
-    public void testCopyMessageToClipboard() {
-        Context mockContext = mock(Context.class);
-        ClipboardManager mockClipboardManager = mock(ClipboardManager.class);
-        Resources mockResources = mock(Resources.class);
-        doReturn(mockClipboardManager).when(mockContext).getSystemService(
-                eq(Context.CLIPBOARD_SERVICE));
-        doReturn(mockResources).when(mockContext).getResources();
-        CellBroadcastSettings.setUseResourcesForSubId(false);
-
-
-        SmsCbMessage testMessage =
-                CellBroadcastAlertServiceTest.createMessageForCmasMessageClass(12412,
-                        mServiceCategory,
-                        mCmasMessageClass);
-
-        boolean madeToast = false;
-        try {
-            CellBroadcastAlertDialog.copyMessageToClipboard(testMessage, mockContext);
-        } catch (NullPointerException e) {
-            // exception expected from creating the toast at the end of copyMessageToClipboard
-            madeToast = true;
-        }
-
-        assertTrue(madeToast);
-        verify(mockContext).getSystemService(eq(Context.CLIPBOARD_SERVICE));
-        verify(mockClipboardManager).setPrimaryClip(any());
     }
 
     public void testAnimationHandler() throws Throwable {
