@@ -34,13 +34,23 @@ android_app {
     apex_available: ["com.android.cellbroadcast"],
 }
 
+// filegroup used to include source into unit tests
+filegroup {
+    name: "cellbroadcastreceiver-sources",
+    srcs: [
+      "src/**/*.java",
+      ":framework-annotations",
+      ":cellbroadcast-constants-shared-srcs",
+    ],
+}
+
 android_app {
      name: "CellBroadcastAppPlatform",
      defaults: ["CellBroadcastCommon"],
      certificate: "platform",
      // CellBroadcastAppPlatform is a replacement for com.android.cellbroadcast apex which consists
      // of CellBroadcastApp
-     overrides: ["com.android.cellbroadcast"],
+     overrides: ["com.android.cellbroadcast", "CellBroadcastLegacyApp"],
      manifest: "AndroidManifest_Platform.xml",
 }
 
