@@ -25,7 +25,9 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.os.RemoteException;
 import android.provider.Telephony;
+import android.provider.Telephony.CellBroadcasts;
 import android.util.Log;
+import com.android.internal.annotations.VisibleForTesting;
 
 /**
  * Open, create, and upgrade the cell broadcast SQLite database. Previously an inner class of
@@ -38,7 +40,8 @@ public class CellBroadcastDatabaseHelper extends SQLiteOpenHelper {
     private static final String TAG = "CellBroadcastDatabaseHelper";
 
     private static final String DATABASE_NAME = "cell_broadcasts.db";
-    static final String TABLE_NAME = "broadcasts";
+    @VisibleForTesting
+    public static final String TABLE_NAME = "broadcasts";
 
     /*
      * Query columns for instantiating SmsCbMessage.
@@ -68,33 +71,19 @@ public class CellBroadcastDatabaseHelper extends SQLiteOpenHelper {
     };
 
     /**
-     * Database version 1: initial version (support removed)
-     * Database version 2-9: (reserved for OEM database customization) (support removed)
-     * Database version 10: adds ETWS and CMAS columns and CDMA support (support removed)
-     * Database version 11: adds delivery time index
-     * Database version 12: add slotIndex
+     * Returns a string used to create the cell broadcast table. This is exposed so the unit test
+     * can construct its own in-memory database to match the cell broadcast db.
      */
-    private static final int DATABASE_VERSION = 12;
-
-    private final Context mContext;
-    final boolean mLegacyProvider;
-
-    CellBroadcastDatabaseHelper(Context context, boolean legacyProvider) {
-        super(context, DATABASE_NAME, null, DATABASE_VERSION);
-        mContext = context;
-        mLegacyProvider = legacyProvider;
-    }
-
-    @Override
-    public void onCreate(SQLiteDatabase db) {
-        db.execSQL("CREATE TABLE " + TABLE_NAME + " ("
-                + Telephony.CellBroadcasts._ID + " INTEGER PRIMARY KEY AUTOINCREMENT,"
-                + Telephony.CellBroadcasts.SLOT_INDEX + " INTEGER DEFAULT 0,"
-                + Telephony.CellBroadcasts.GEOGRAPHICAL_SCOPE + " INTEGER,"
-                + Telephony.CellBroadcasts.PLMN + " TEXT,"
-                + Telephony.CellBroadcasts.LAC + " INTEGER,"
-                + Telephony.CellBroadcasts.CID + " INTEGER,"
-                + Telephony.CellBroadcasts.SERIAL_NUMBER + " INTEGER,"
+    @VisibleForTesting
+    public static String getStringForCellBroadcastTableCreation(String tableName) {
+        return "CREATE TABLE " + tableName + " ("
+                + CellBroadcasts._ID + " INTEGER PRIMARY KEY AUTOINCREMENT,"
+                + CellBroadcasts.SLOT_INDEX + " INTEGER DEFAULT 0,"
+                + CellBroadcasts.GEOGRAPHICAL_SCOPE + " INTEGER,"
+                + CellBroadcasts.PLMN + " TEXT,"
+                + CellBroadcasts.LAC + " INTEGER,"
+                + CellBroadcasts.CID + " INTEGER,"
+                + CellBroadcasts.SERIAL_NUMBER + " INTEGER,"
                 + Telephony.CellBroadcasts.SERVICE_CATEGORY + " INTEGER,"
                 + Telephony.CellBroadcasts.LANGUAGE_CODE + " TEXT,"
                 + Telephony.CellBroadcasts.MESSAGE_BODY + " TEXT,"
@@ -108,7 +97,32 @@ public class CellBroadcastDatabaseHelper extends SQLiteOpenHelper {
                 + Telephony.CellBroadcasts.CMAS_RESPONSE_TYPE + " INTEGER,"
                 + Telephony.CellBroadcasts.CMAS_SEVERITY + " INTEGER,"
                 + Telephony.CellBroadcasts.CMAS_URGENCY + " INTEGER,"
-                + Telephony.CellBroadcasts.CMAS_CERTAINTY + " INTEGER);");
+                + Telephony.CellBroadcasts.CMAS_CERTAINTY + " INTEGER);";
+    }
+
+
+    /**
+     * Database version 1: initial version (support removed)
+     * Database version 2-9: (reserved for OEM database customization) (support removed)
+     * Database version 10: adds ETWS and CMAS columns and CDMA support (support removed)
+     * Database version 11: adds delivery time index
+     * Database version 12: add slotIndex
+     */
+    private static final int DATABASE_VERSION = 12;
+
+    private final Context mContext;
+    final boolean mLegacyProvider;
+
+    @VisibleForTesting
+    public CellBroadcastDatabaseHelper(Context context, boolean legacyProvider) {
+        super(context, DATABASE_NAME, null, DATABASE_VERSION);
+        mContext = context;
+        mLegacyProvider = legacyProvider;
+    }
+
+    @Override
+    public void onCreate(SQLiteDatabase db) {
+        db.execSQL(getStringForCellBroadcastTableCreation(TABLE_NAME));
 
         db.execSQL("CREATE INDEX IF NOT EXISTS deliveryTimeIndex ON " + TABLE_NAME
                 + " (" + Telephony.CellBroadcasts.DELIVERY_TIME + ");");
@@ -137,7 +151,8 @@ public class CellBroadcastDatabaseHelper extends SQLiteOpenHelper {
      * migrate predefined data through {@link Telephony.CellBroadcasts#AUTHORITY_LEGACY_URI}
      * from OEM app.
      */
-    private void migrateFromLegacy(@NonNull SQLiteDatabase db) {
+    @VisibleForTesting
+    public void migrateFromLegacy(@NonNull SQLiteDatabase db) {
         try (ContentProviderClient client = mContext.getContentResolver()
                 .acquireContentProviderClient(Telephony.CellBroadcasts.AUTHORITY_LEGACY)) {
             if (client == null) {
