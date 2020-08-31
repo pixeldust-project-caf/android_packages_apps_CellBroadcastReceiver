@@ -73,6 +73,7 @@
         <activity android:name="com.android.cellbroadcastreceiver.CellBroadcastListActivity"
                   android:label="@string/app_label"
                   android:theme="@style/CellBroadcastSettingsTheme"
+                  android:exported="true"
                   android:configChanges="orientation|keyboardHidden" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -122,7 +123,8 @@
         <activity android:name="com.android.cellbroadcastreceiver.CellBroadcastOptOutActivity"
                   android:exported="false" />
 
-        <receiver android:name="com.android.cellbroadcastreceiver.CellBroadcastReceiver">
+        <receiver android:name="com.android.cellbroadcastreceiver.CellBroadcastReceiver"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.telephony.action.DEFAULT_SMS_SUBSCRIPTION_CHANGED" />
                 <action android:name="android.telephony.action.CARRIER_CONFIG_CHANGED" />
