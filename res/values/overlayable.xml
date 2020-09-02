@@ -64,7 +64,6 @@
             <item type="string" name="sms_cb_sender_name_emergency" />
             <!-- Value of sms sender display name to be shown in SMS inbox for public safety alerts -->
             <item type="string" name="sms_cb_sender_name_public_safety" />
-            <item type="string" name="sms_cb_non_emergency_sender_name" />
             <item type="bool" name="enable_write_alerts_to_sms_inbox" />
 
             <!-- The name of the Cell Broadcast Receiver app. [CHAR LIMIT=NONE] -->
@@ -124,6 +123,10 @@
             <!-- Preference title for enable presidential threat alerts checkbox. [CHAR LIMIT=40] -->
             <item type="string" name="enable_cmas_presidential_alerts_title" />
 
+            <!-- Whether to retry message history data migration after db creation
+            Note, please only enable this flag when upgrade to R, enabling this
+            flag during OTA might cause history data inserted twice.-->
+            <item type="bool" name="retry_message_history_data_migration" />
         </policy>
         <!-- END VENDOR CUSTOMIZATION -->
 
