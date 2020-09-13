@@ -40,6 +40,7 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.SystemProperties;
 import android.os.UserHandle;
+import android.os.UserManager;
 import android.preference.PreferenceManager;
 import android.provider.Telephony;
 import android.service.notification.StatusBarNotification;
@@ -239,6 +240,13 @@ public class CellBroadcastAlertService extends Service {
             }
         }
 
+        // If the alert is set for test-mode only, then we should check if device is currently under
+        // testing mode (testing mode can be enabled by dialer code *#*#CMAS#*#*.
+        if (range != null && range.mTestMode && !CellBroadcastReceiver.isTestingMode(mContext)) {
+            Log.d(TAG, "ignoring the alert due to not in testing mode");
+            return false;
+        }
+
         // Check for custom filtering
         String messageFilters = SystemProperties.get(MESSAGE_FILTER_PROPERTY_KEY, "");
         if (!TextUtils.isEmpty(messageFilters)) {
@@ -291,29 +299,36 @@ public class CellBroadcastAlertService extends Service {
         // write to database on a background thread
         new CellBroadcastContentProvider.AsyncCellBroadcastTask(getContentResolver())
                 .execute((CellBroadcastContentProvider.CellBroadcastOperation) provider -> {
-                    if (provider.insertNewBroadcast(message)) {
-                        // new message, show the alert or notification on UI thread
-                        startService(alertIntent);
-                        // mark the message as displayed to the user.
-                        markMessageDisplayed(message);
-                        if (CellBroadcastSettings.getResources(mContext,
-                                message.getSubscriptionId())
-                                .getBoolean(R.bool.enable_write_alerts_to_sms_inbox)) {
-                            // TODO: Should not create the instance of channel manager everywhere.
-                            CellBroadcastChannelManager channelManager =
-                                    new CellBroadcastChannelManager(mContext,
-                                            message.getSubscriptionId());
-                            CellBroadcastChannelRange range = channelManager
-                                    .getCellBroadcastChannelRangeFromMessage(message);
-                            if (CellBroadcastReceiver.isTestingMode(getApplicationContext())
-                                    || (range != null && range.mWriteToSmsInbox)) {
-                                writeMessageToSmsInbox(message);
-                            }
+                    CellBroadcastChannelManager channelManager =
+                            new CellBroadcastChannelManager(mContext, message.getSubscriptionId());
+                    CellBroadcastChannelRange range = channelManager
+                            .getCellBroadcastChannelRangeFromMessage(message);
+                    // Check if the message was marked as do not display. Some channels
+                    // are reserved for biz purpose where the msg should be routed as a data SMS
+                    // rather than being displayed as pop-up or notification. However,
+                    // per requirements those messages might also need to write to sms inbox...
+                    boolean ret = false;
+                    if (range != null && range.mDisplay == true) {
+                        if (provider.insertNewBroadcast(message)) {
+                            // new message, show the alert or notification on UI thread
+                            // if not display..
+                            startService(alertIntent);
+                            // mark the message as displayed to the user.
+                            markMessageDisplayed(message);
+                            ret = true;
                         }
-                        return true;
                     } else {
-                        return false;
+                        Log.d(TAG, "ignoring the alert due to configured channels was marked "
+                                + "as do not display");
                     }
+                    if (CellBroadcastSettings.getResources(mContext, message.getSubscriptionId())
+                            .getBoolean(R.bool.enable_write_alerts_to_sms_inbox)) {
+                        if (CellBroadcastReceiver.isTestingMode(getApplicationContext())
+                                || (range != null && range.mWriteToSmsInbox)) {
+                            writeMessageToSmsInbox(message);
+                        }
+                    }
+                    return ret;
                 });
     }
 
@@ -818,6 +833,13 @@ public class CellBroadcastAlertService extends Service {
      * @param message The cell broadcast message.
      */
     private void writeMessageToSmsInbox(@NonNull SmsCbMessage message) {
+        UserManager userManager = mContext.getSystemService(UserManager.class);
+        if (!userManager.isSystemUser()) {
+            // SMS database is single-user mode, discard non-system users to avoid inserting twice.
+            Log.d(TAG, "ignoring writeMessageToSmsInbox due to non-system user");
+            return;
+        }
+
         // composing SMS
         ContentValues cv = new ContentValues();
         cv.put(Telephony.Sms.Inbox.BODY, message.getMessageBody());
@@ -830,6 +852,16 @@ public class CellBroadcastAlertService extends Service {
         cv.put(Telephony.Sms.Inbox.THREAD_ID, Telephony.Threads.getOrCreateThreadId(mContext,
                 mContext.getString(CellBroadcastResources
                         .getSmsSenderAddressResource(mContext, message))));
+        if (CellBroadcastSettings.getResources(mContext, message.getSubscriptionId())
+                .getBoolean(R.bool.always_mark_sms_read)) {
+            // Always mark SMS message READ. End users expect when they read new CBS messages,
+            // the unread alert count in the notification should be decreased, as they thought it
+            // was coming from SMS. Now we are marking those SMS as read (SMS now serve as a message
+            // history purpose) and that should give clear messages to end-users that alerts are not
+            // from the SMS app but CellBroadcast and they should tap the notification to read alert
+            // in order to see decreased unread message count.
+            cv.put(Telephony.Sms.Inbox.READ, 1);
+        }
         Uri uri = mContext.getContentResolver().insert(Telephony.Sms.Inbox.CONTENT_URI, cv);
         if (uri == null) {
             Log.e(TAG, "writeMessageToSmsInbox: failed");

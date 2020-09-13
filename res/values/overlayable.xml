@@ -52,6 +52,15 @@
             but only for certain products. OEMs can customize below config by including 0xA807
             or not per product configuration-->
             <item type="array" name="additional_cbs_channels_strings" />
+
+            <!-- Allow OEM to customize link_method. By default, use smart
+            linkify except for countries which do not allow link copy. -->
+            <!-- Text links generating method. Could be one of the followings.
+             "none": Not adding any link to message texts.
+             "legacy_linkify": Use the legacy linkify to add links to message texts.
+             "smart_linkify": Use machine learning based smart linkify to add
+             links to message texts. -->
+            <item type="string" name="link_method" />
             <!-- END CHANNEL related configurations -->
 
             <!-- Some countries like KR requires to display CB messages inside SMS inbox.
@@ -65,6 +74,7 @@
             <!-- Value of sms sender display name to be shown in SMS inbox for public safety alerts -->
             <item type="string" name="sms_cb_sender_name_public_safety" />
             <item type="bool" name="enable_write_alerts_to_sms_inbox" />
+            <item type="bool" name="always_mark_sms_read" />
 
             <!-- The name of the Cell Broadcast Receiver app. [CHAR LIMIT=NONE] -->
             <item type="string" name="app_label" />
