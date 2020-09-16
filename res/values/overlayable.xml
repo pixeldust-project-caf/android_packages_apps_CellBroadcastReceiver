@@ -25,6 +25,46 @@
             <item type="style" name="CellBroadcastAlertTheme"/>
             <item type="style" name="CellBroadcastListActivityTheme"/>
             <item type="style" name="CellBroadcastSettingsTheme"/>
+
+            <!-- All attributes defined in app level need to exposed to overlay the AlerDialog and
+                 CellBroadcastAlertDialog layouts -->
+            <item type="attr" name="preferenceFragmentCompatStyle"/>
+            <item type="attr" name="switchPreferenceStyle"/>
+            <item type="attr" name="preferenceCategoryStyle"/>
+            <item type="attr" name="preferenceStyle"/>
+            <item type="attr" name="dialogPreferenceStyle"/>
+
+            <item type="attr" name="preferenceTheme"/>
+            <item type="attr" name="allowDividerAfterLastItem"/>
+            <item type="attr" name="allowDividerAbove"/>
+            <item type="attr" name="allowDividerBelow"/>
+            <item type="attr" name="singleLineTitle"/>
+
+            <item type="attr" name="alertDialogTheme"/>
+            <item type="attr" name="alertDialogStyle"/>
+            <item type="attr" name="listLayout"/>
+            <item type="attr" name="listItemLayout"/>
+            <item type="attr" name="multiChoiceItemLayout"/>
+            <item type="attr" name="singleChoiceItemLayout"/>
+
+            <item type="attr" name="windowActionBar"/>
+            <item type="attr" name="colorAccent"/>
+
+            <!-- Declare the IDs used in overlayable layouts like CellBroadcastAlertDialog -->
+            <item type="id" name="parentPanel"/>
+            <item type="id" name="topPanel"/>
+            <item type="id" name="titleDividerTop"/>
+            <item type="id" name="title_template"/>
+            <item type="id" name="icon"/>
+            <item type="id" name="alertTitle"/>
+            <item type="id" name="titleDivider"/>
+            <item type="id" name="contentPanel"/>
+            <item type="id" name="scrollView"/>
+            <item type="id" name="message"/>
+            <item type="id" name="pictogramPanel"/>
+            <item type="id" name="pictogramImage"/>
+            <item type="id" name="buttonPanel"/>
+            <item type="id" name="dismissButton"/>
             <!-- END THEME / STYLE -->
 
             <!-- START DIMEN -->
@@ -75,10 +115,12 @@
             <item type="string" name="sms_cb_sender_name_public_safety" />
             <item type="bool" name="enable_write_alerts_to_sms_inbox" />
             <item type="bool" name="always_mark_sms_read" />
+
             <!-- Whether to retry message history data migration after db creation
            Note, please only enable this flag when upgrade to R, enabling this
            flag during OTA might cause history data inserted twice.-->
             <item type="bool" name="retry_message_history_data_migration" />
+            <item type="bool" name="show_main_switch_settings" />
 
 
             <!-- Temporarily enable string customization to address translation issues. All translation issues will be fixed in S by upstreaming -->
