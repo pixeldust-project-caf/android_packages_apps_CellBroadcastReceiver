@@ -100,7 +100,6 @@ public class CellBroadcastListActivityTest extends
 
     public void testOnCreate() throws Throwable {
         startActivity();
-        verify(mMockNotificationManager).cancel(eq(CellBroadcastAlertService.NOTIFICATION_ID));
         stopActivity();
     }
 
@@ -339,7 +338,7 @@ public class CellBroadcastListActivityTest extends
         doReturn(mockMenuItem).when(mockMenu).add(anyInt(), anyInt(), anyInt(), anyInt());
 
         activity.mListFragment.onCreateOptionsMenu(mockMenu, null);
-        verify(mockMenu, times(3)).add(anyInt(), anyInt(), anyInt(), anyInt());
+        verify(mockMenu, times(4)).add(anyInt(), anyInt(), anyInt(), anyInt());
     }
 
     public void testFragmentOnPrepareOptionsMenu() throws Throwable {

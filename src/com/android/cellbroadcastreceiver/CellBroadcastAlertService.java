@@ -32,8 +32,6 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
-import android.media.AudioAttributes;
-import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.Bundle;
@@ -42,6 +40,7 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.SystemProperties;
 import android.os.UserHandle;
+import android.os.UserManager;
 import android.preference.PreferenceManager;
 import android.provider.Telephony;
 import android.telephony.CarrierConfigManager;
@@ -67,8 +66,7 @@ import java.util.Locale;
  * and an alert tone is played when the alert is first shown to the user
  * (but not when the user views a previously received broadcast).
  */
-public class CellBroadcastAlertService extends Service
-        implements AudioManager.OnAudioFocusChangeListener {
+public class CellBroadcastAlertService extends Service {
     private static final String TAG = "CBAlertService";
 
     /** Intent action to display alert dialog/notification, after verifying the alert is new. */
@@ -135,7 +133,6 @@ public class CellBroadcastAlertService extends Service
     }
 
     private TelephonyManager mTelephonyManager;
-    private AudioManager mAudioManager;
 
     /**
      * Do not preempt active voice call, instead post notifications and play the ringtone/vibrate
@@ -170,8 +167,6 @@ public class CellBroadcastAlertService extends Service
         mTelephonyManager = (TelephonyManager)
                 getApplicationContext().getSystemService(Context.TELEPHONY_SERVICE);
         mTelephonyManager.listen(mPhoneStateListener, PhoneStateListener.LISTEN_CALL_STATE);
-        mAudioManager = (AudioManager)
-            getApplicationContext().getSystemService(Context.AUDIO_SERVICE);
     }
 
     @Override
@@ -252,6 +247,13 @@ public class CellBroadcastAlertService extends Service
             }
         }
 
+        // If the alert is set for test-mode only, then we should check if device is currently under
+        // testing mode (testing mode can be enabled by dialer code *#*#CMAS#*#*.
+        if (range != null && range.mTestMode && !CellBroadcastReceiver.isTestingMode(mContext)) {
+            Log.d(TAG, "ignoring the alert due to not in testing mode");
+            return false;
+        }
+
         // Check for custom filtering
         String messageFilters = SystemProperties.get(MESSAGE_FILTER_PROPERTY_KEY, "");
         if (!TextUtils.isEmpty(messageFilters)) {
@@ -304,29 +306,36 @@ public class CellBroadcastAlertService extends Service
         // write to database on a background thread
         new CellBroadcastContentProvider.AsyncCellBroadcastTask(getContentResolver())
                 .execute((CellBroadcastContentProvider.CellBroadcastOperation) provider -> {
-                    if (provider.insertNewBroadcast(message)) {
-                        // new message, show the alert or notification on UI thread
-                        startService(alertIntent);
-                        // mark the message as displayed to the user.
-                        markMessageDisplayed(message);
-                        if (CellBroadcastSettings.getResources(mContext,
-                                message.getSubscriptionId())
-                                .getBoolean(R.bool.enable_write_alerts_to_sms_inbox)) {
-                            // TODO: Should not create the instance of channel manager everywhere.
-                            CellBroadcastChannelManager channelManager =
-                                    new CellBroadcastChannelManager(mContext,
-                                            message.getSubscriptionId());
-                            CellBroadcastChannelRange range = channelManager
-                                    .getCellBroadcastChannelRangeFromMessage(message);
-                            if (CellBroadcastReceiver.isTestingMode(getApplicationContext())
-                                    || (range != null && range.mWriteToSmsInbox)) {
-                                writeMessageToSmsInbox(message);
-                            }
+                    CellBroadcastChannelManager channelManager =
+                            new CellBroadcastChannelManager(mContext, message.getSubscriptionId());
+                    CellBroadcastChannelRange range = channelManager
+                            .getCellBroadcastChannelRangeFromMessage(message);
+                    // Check if the message was marked as do not display. Some channels
+                    // are reserved for biz purpose where the msg should be routed as a data SMS
+                    // rather than being displayed as pop-up or notification. However,
+                    // per requirements those messages might also need to write to sms inbox...
+                    boolean ret = false;
+                    if (range != null && range.mDisplay == true) {
+                        if (provider.insertNewBroadcast(message)) {
+                            // new message, show the alert or notification on UI thread
+                            // if not display..
+                            startService(alertIntent);
+                            // mark the message as displayed to the user.
+                            markMessageDisplayed(message);
+                            ret = true;
                         }
-                        return true;
                     } else {
-                        return false;
+                        Log.d(TAG, "ignoring the alert due to configured channels was marked "
+                                + "as do not display");
                     }
+                    if (CellBroadcastSettings.getResources(mContext, message.getSubscriptionId())
+                            .getBoolean(R.bool.enable_write_alerts_to_sms_inbox)) {
+                        if (CellBroadcastReceiver.isTestingMode(getApplicationContext())
+                                || (range != null && range.mWriteToSmsInbox)) {
+                            writeMessageToSmsInbox(message);
+                        }
+                    }
+                    return ret;
                 });
     }
 
@@ -336,9 +345,9 @@ public class CellBroadcastAlertService extends Service
      * @param message The cell broadcast message.
      */
     private void markMessageDisplayed(SmsCbMessage message) {
-        ContentValues cv = new ContentValues();
-        cv.put(Telephony.CellBroadcasts.MESSAGE_DISPLAYED, 1);
-        mContext.getContentResolver().update(Telephony.CellBroadcasts.CONTENT_URI, cv,
+        mContext.getContentResolver().update(
+                Uri.withAppendedPath(Telephony.CellBroadcasts.CONTENT_URI,"displayed"),
+                new ContentValues(),
                 Telephony.CellBroadcasts.RECEIVED_TIME + "=?",
                 new String[] {Long.toString(message.getReceivedTime())});
     }
@@ -375,7 +384,7 @@ public class CellBroadcastAlertService extends Service
             // cell broadcast messages
             ArrayList<SmsCbMessage> messageList = CellBroadcastReceiverApp
                     .addNewMessageToList(cbm);
-            addToNotificationBar(cbm, messageList, this, false);
+            addToNotificationBar(cbm, messageList, this, false, true);
         }
     }
 
@@ -386,6 +395,14 @@ public class CellBroadcastAlertService extends Service
      * @return true if the channel is enabled on the device, otherwise false.
      */
     private boolean isChannelEnabled(SmsCbMessage message) {
+        CellBroadcastChannelManager channelManager = new CellBroadcastChannelManager(mContext,
+                message.getSubscriptionId());
+        CellBroadcastChannelRange chanelrange = channelManager
+                .getCellBroadcastChannelRangeFromMessage(message);
+        if (chanelrange != null && chanelrange.mAlwaysOn) {
+            Log.d(TAG, "channel is enabled due to always-on, ignoring preference check");
+            return true;
+        }
 
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
         // Check if all emergency alerts are disabled.
@@ -418,8 +435,6 @@ public class CellBroadcastAlertService extends Service
         // Check if the messages are on additional channels enabled by the resource config.
         // If those channels are enabled by the carrier, but the device is actually roaming, we
         // should not allow the messages.
-        CellBroadcastChannelManager channelManager = new CellBroadcastChannelManager(
-                mContext, message.getSubscriptionId());
         ArrayList<CellBroadcastChannelRange> ranges = channelManager.getCellBroadcastChannelRanges(
                 R.array.additional_cbs_channels_strings);
 
@@ -477,12 +492,6 @@ public class CellBroadcastAlertService extends Service
         }
 
         if (channelManager.checkCellBroadcastChannelRange(channel,
-                R.array.exercise_alert_range_strings)
-                && getResources().getBoolean(R.bool.always_enable_exercise_alert)) {
-            return true;
-        }
-
-        if (channelManager.checkCellBroadcastChannelRange(channel,
                 R.array.required_monthly_test_range_strings)
                 || channelManager.checkCellBroadcastChannelRange(channel,
                 R.array.exercise_alert_range_strings)
@@ -510,8 +519,9 @@ public class CellBroadcastAlertService extends Service
                     .getBoolean(CellBroadcastSettings.KEY_ENABLE_STATE_LOCAL_TEST_ALERTS,
                             false);
         }
-
-        return true;
+        
+        Log.e(TAG, "received undefined channels: " + channel);
+        return false;
     }
 
     /**
@@ -601,7 +611,7 @@ public class CellBroadcastAlertService extends Service
 
         // For FEATURE_WATCH, the dialog doesn't make sense from a UI/UX perspective
         if (getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH)) {
-            addToNotificationBar(message, messageList, this, false);
+            addToNotificationBar(message, messageList, this, false, true);
         } else {
             Intent alertDialogIntent = createDisplayMessageIntent(this,
                     CellBroadcastAlertDialog.class, messageList);
@@ -615,10 +625,11 @@ public class CellBroadcastAlertService extends Service
      * Add the new alert to the notification bar (non-emergency alerts), or launch a
      * high-priority immediate intent for emergency alerts.
      * @param message the alert to display
+     * @param shouldAlert only notify once if set to {@code false}.
      */
     static void addToNotificationBar(SmsCbMessage message,
                                      ArrayList<SmsCbMessage> messageList, Context context,
-                                     boolean fromSaveState) {
+                                     boolean fromSaveState, boolean shouldAlert) {
         Resources res = CellBroadcastSettings.getResources(context, message.getSubscriptionId());
         int channelTitleId = CellBroadcastResources.getDialogTitleResource(context, message);
         CharSequence channelName = context.getText(channelTitleId);
@@ -627,9 +638,11 @@ public class CellBroadcastAlertService extends Service
                 (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         createNotificationChannels(context);
 
+        boolean isWatch = context.getPackageManager()
+                .hasSystemFeature(PackageManager.FEATURE_WATCH);
         // Create intent to show the new messages when user selects the notification.
         Intent intent;
-        if (context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH)) {
+        if (isWatch) {
             // For FEATURE_WATCH we want to mark as read
             intent = createMarkAsReadIntent(context, message.getReceivedTime());
         } else {
@@ -642,7 +655,7 @@ public class CellBroadcastAlertService extends Service
         intent.putExtra(CellBroadcastAlertDialog.FROM_SAVE_STATE_NOTIFICATION_EXTRA, fromSaveState);
 
         PendingIntent pi;
-        if (context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH)) {
+        if (isWatch) {
             pi = PendingIntent.getBroadcast(context, 0, intent, 0);
         } else {
             pi = PendingIntent.getActivity(context, NOTIFICATION_ID, intent,
@@ -671,9 +684,10 @@ public class CellBroadcastAlertService extends Service
                         .setPriority(Notification.PRIORITY_HIGH)
                         .setColor(res.getColor(R.color.notification_color))
                         .setVisibility(Notification.VISIBILITY_PUBLIC)
-                        .setOngoing(nonSwipeableNotification);
+                        .setOngoing(nonSwipeableNotification)
+                        .setOnlyAlertOnce(!shouldAlert);
 
-        if (context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH)) {
+        if (isWatch) {
             builder.setDeleteIntent(pi);
             // FEATURE_WATCH/CWH devices see this as priority
             builder.setVibrate(new long[]{0});
@@ -703,8 +717,7 @@ public class CellBroadcastAlertService extends Service
         // Emergency messages use a different audio playback and display path. Since we use
         // addToNotification for the emergency display on FEATURE WATCH devices vs the
         // Alert Dialog, it will call this and override the emergency audio tone.
-        if (context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH)
-                && !channelManager.isEmergencyMessage(message)) {
+        if (isWatch && !channelManager.isEmergencyMessage(message)) {
             if (res.getBoolean(R.bool.watch_enable_non_emergency_audio)) {
                 // start audio/vibration/speech service for non emergency alerts
                 Intent audioIntent = new Intent(context, CellBroadcastAlertAudio.class);
@@ -762,7 +775,7 @@ public class CellBroadcastAlertService extends Service
      * @return delete intent to add to the pending intent
      */
     static Intent createMarkAsReadIntent(Context context, long deliveryTime) {
-        Intent deleteIntent = new Intent(context, CellBroadcastReceiver.class);
+        Intent deleteIntent = new Intent(context, CellBroadcastInternalReceiver.class);
         deleteIntent.setAction(CellBroadcastReceiver.ACTION_MARK_AS_READ);
         deleteIntent.putExtra(CellBroadcastReceiver.EXTRA_DELIVERY_TIME, deliveryTime);
         return deleteIntent;
@@ -781,15 +794,6 @@ public class CellBroadcastAlertService extends Service
         }
     }
 
-    @Override
-    public void onAudioFocusChange(int focusChange) {
-        if(focusChange == AudioManager.AUDIOFOCUS_GAIN) {
-            Log.d(TAG, "audio focus released from voice call, play pending alert if needed");
-            mAudioManager.abandonAudioFocus(this);
-            playPendingAlert();
-        }
-    }
-
     /**
      * Remove previous unread notifications and play stored unread
      * emergency messages after voice call finish.
@@ -802,28 +806,7 @@ public class CellBroadcastAlertService extends Service
             switch (state) {
                 case TelephonyManager.CALL_STATE_IDLE:
                     Log.d(TAG, "onCallStateChanged: CALL_STATE_IDLE");
-                    // check if audio focus was released by voice call. This is to avoid possible
-                    // race conditions that voice call did not release audio focus while alert is
-                    // playing at the same time (out-of-rhythm)
-                    if (mAudioManager == null) {
-                        mAudioManager = (AudioManager)
-                            getApplicationContext().getSystemService(Context.AUDIO_SERVICE);
-                    }
-                    int audioFocusResult = mAudioManager.requestAudioFocus(
-                            CellBroadcastAlertService.this::onAudioFocusChange,
-                            new AudioAttributes.Builder().setLegacyStreamType(
-                                    AudioManager.STREAM_ALARM).build(),
-                            AudioManager.AUDIOFOCUS_GAIN_TRANSIENT,
-                            AudioManager.AUDIOFOCUS_FLAG_DELAY_OK);
-                    if (audioFocusResult == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-                        Log.d(TAG, "audio focus released from voice call, "
-                                + "play pending alert if needed");
-                        mAudioManager.abandonAudioFocus(
-                                CellBroadcastAlertService.this::onAudioFocusChange);
-                        playPendingAlert();
-                    } else {
-                        Log.d(TAG, "wait for audio focus release after call");
-                    }
+                    playPendingAlert();
                     break;
 
                 default:
@@ -862,17 +845,35 @@ public class CellBroadcastAlertService extends Service
      * @param message The cell broadcast message.
      */
     private void writeMessageToSmsInbox(@NonNull SmsCbMessage message) {
+        UserManager userManager = mContext.getSystemService(UserManager.class);
+        if (!userManager.isSystemUser()) {
+            // SMS database is single-user mode, discard non-system users to avoid inserting twice.
+            Log.d(TAG, "ignoring writeMessageToSmsInbox due to non-system user");
+            return;
+        }
+
         // composing SMS
         ContentValues cv = new ContentValues();
         cv.put(Telephony.Sms.Inbox.BODY, message.getMessageBody());
         cv.put(Telephony.Sms.Inbox.DATE, message.getReceivedTime());
         cv.put(Telephony.Sms.Inbox.SUBSCRIPTION_ID, message.getSubscriptionId());
-        cv.put(Telephony.Sms.Inbox.SUBJECT, CellBroadcastResources.getDialogTitleResource(mContext,
-                message));
-        cv.put(Telephony.Sms.Inbox.ADDRESS, mContext.getString(R.string.sms_cb_sender_name));
-        // store all cellbroadcast messages in the same thread.
+        cv.put(Telephony.Sms.Inbox.SUBJECT, mContext.getString(
+                CellBroadcastResources.getDialogTitleResource(mContext, message)));
+        cv.put(Telephony.Sms.Inbox.ADDRESS, mContext.getString(
+                CellBroadcastResources.getSmsSenderAddressResource(mContext, message)));
         cv.put(Telephony.Sms.Inbox.THREAD_ID, Telephony.Threads.getOrCreateThreadId(mContext,
-                mContext.getString(R.string.sms_cb_sender_name)));
+                mContext.getString(CellBroadcastResources
+                        .getSmsSenderAddressResource(mContext, message))));
+        if (CellBroadcastSettings.getResources(mContext, message.getSubscriptionId())
+                .getBoolean(R.bool.always_mark_sms_read)) {
+            // Always mark SMS message READ. End users expect when they read new CBS messages,
+            // the unread alert count in the notification should be decreased, as they thought it
+            // was coming from SMS. Now we are marking those SMS as read (SMS now serve as a message
+            // history purpose) and that should give clear messages to end-users that alerts are not
+            // from the SMS app but CellBroadcast and they should tap the notification to read alert
+            // in order to see decreased unread message count.
+            cv.put(Telephony.Sms.Inbox.READ, 1);
+        }
         Uri uri = mContext.getContentResolver().insert(Telephony.Sms.Inbox.CONTENT_URI, cv);
         if (uri == null) {
             Log.e(TAG, "writeMessageToSmsInbox: failed");

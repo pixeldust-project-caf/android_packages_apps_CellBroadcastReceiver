@@ -59,7 +59,7 @@ import java.util.Locale;
  * it can continue to play if another activity overrides the CellBroadcastListActivity.
  */
 public class CellBroadcastAlertAudio extends Service implements TextToSpeech.OnInitListener,
-        TextToSpeech.OnUtteranceCompletedListener {
+        TextToSpeech.OnUtteranceCompletedListener, AudioManager.OnAudioFocusChangeListener {
     private static final String TAG = "CellBroadcastAlertAudio";
 
     /** Action to start playing alert audio/vibration/speech. */
@@ -78,7 +78,7 @@ public class CellBroadcastAlertAudio extends Service implements TextToSpeech.OnI
     public static final String ALERT_AUDIO_TONE_TYPE =
             "com.android.cellbroadcastreceiver.ALERT_AUDIO_TONE_TYPE";
 
-    /** Extra for alert vibration pattern (unless master volume is silent). */
+    /** Extra for alert vibration pattern (unless main volume is silent). */
     public static final String ALERT_AUDIO_VIBRATION_PATTERN_EXTRA =
             "com.android.cellbroadcastreceiver.ALERT_AUDIO_VIBRATION_PATTERN";
 
@@ -238,7 +238,7 @@ public class CellBroadcastAlertAudio extends Service implements TextToSpeech.OnI
                         if (mMessageBody != null && mTtsEngineReady && mTtsLanguageSupported) {
                             if (DBG) log("Speaking broadcast text: " + mMessageBody);
 
-                            mTts.setAudioAttributes(getAlertAudioAttributes(mAlertType));
+                            mTts.setAudioAttributes(getAlertAudioAttributes());
                             res = mTts.speak(mMessageBody, 2, null, TTS_UTTERANCE_ID);
                             mState = STATE_SPEAKING;
                         }
@@ -297,7 +297,7 @@ public class CellBroadcastAlertAudio extends Service implements TextToSpeech.OnI
             // Release the audio focus so other audio (e.g. music) can resume.
             // Do not do this in stop() because stop() is also called when we stop the tone (before
             // TTS is playing). We only want to release the focus when tone and TTS are played.
-            mAudioManager.abandonAudioFocus(null);
+            mAudioManager.abandonAudioFocus(this);
         }
     }
 
@@ -424,8 +424,7 @@ public class CellBroadcastAlertAudio extends Service implements TextToSpeech.OnI
             }
 
             AudioAttributes.Builder attrBuilder = new AudioAttributes.Builder();
-            attrBuilder.setUsage(alertType == AlertType.INFO
-                    ? AudioAttributes.USAGE_NOTIFICATION : AudioAttributes.USAGE_ALARM);
+            attrBuilder.setUsage(AudioAttributes.USAGE_ALARM);
             if (mOverrideDnd) {
                 // Set the flags to bypass DnD mode if override dnd is turned on.
                 attrBuilder.setFlags(AudioAttributes.FLAG_BYPASS_INTERRUPTION_POLICY
@@ -498,11 +497,17 @@ public class CellBroadcastAlertAudio extends Service implements TextToSpeech.OnI
                         setDataSourceFromResource(res, mMediaPlayer, R.raw.default_tone);
                 }
 
-                // Request audio focus (though we're going to play even if we don't get it)
-                mAudioManager.requestAudioFocus(null, AudioManager.STREAM_ALARM,
-                        AudioManager.AUDIOFOCUS_GAIN_TRANSIENT);
-                mMediaPlayer.setAudioAttributes(getAlertAudioAttributes(mAlertType));
-                setAlertVolume(mAlertType);
+                // Request audio focus (though we're going to play even if we don't get it). The
+                // only scenario we are not getting focus immediately is a voice call is holding
+                // focus, since we are passing AUDIOFOCUS_FLAG_DELAY_OK, the focus will be granted
+                // once voice call ends.
+                mAudioManager.requestAudioFocus(this,
+                        new AudioAttributes.Builder().setLegacyStreamType(
+                                AudioManager.STREAM_ALARM).build(),
+                        AudioManager.AUDIOFOCUS_GAIN_TRANSIENT,
+                        AudioManager.AUDIOFOCUS_FLAG_DELAY_OK);
+                mMediaPlayer.setAudioAttributes(getAlertAudioAttributes());
+                setAlertVolume();
 
                 // If we are using the custom alert duration, set looping to true so we can repeat
                 // the alert. The tone playing will stop when ALERT_SOUND_FINISHED arrives.
@@ -584,7 +589,7 @@ public class CellBroadcastAlertAudio extends Service implements TextToSpeech.OnI
         mHandler.removeMessages(ALERT_PAUSE_FINISHED);
         mHandler.removeMessages(ALERT_LED_FLASH_TOGGLE);
 
-        resetAlarmStreamVolume(mAlertType);
+        resetAlarmStreamVolume();
 
         if (mState == STATE_ALERTING) {
             // Stop audio playing
@@ -615,15 +620,21 @@ public class CellBroadcastAlertAudio extends Service implements TextToSpeech.OnI
         mState = STATE_IDLE;
     }
 
+    @Override
+    public void onAudioFocusChange(int focusChange) {
+        log("onAudioFocusChanged: " + focusChange);
+        // Do nothing, as we don't care if focus was steal from other apps, as emergency alerts will
+        // play anyway.
+    }
+
     /**
      * Get audio attribute for the alarm.
      */
-    private AudioAttributes getAlertAudioAttributes(AlertType alertType) {
+    private AudioAttributes getAlertAudioAttributes() {
         AudioAttributes.Builder builder = new AudioAttributes.Builder();
 
         builder.setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION);
-        builder.setUsage((alertType == AlertType.INFO
-                ? AudioAttributes.USAGE_NOTIFICATION : AudioAttributes.USAGE_ALARM));
+        builder.setUsage(AudioAttributes.USAGE_ALARM);
         if (mOverrideDnd) {
             // Set FLAG_BYPASS_INTERRUPTION_POLICY and FLAG_BYPASS_MUTE so that it enables
             // audio in any DnD mode, even in total silence DnD mode (requires MODIFY_PHONE_STATE).
@@ -637,7 +648,7 @@ public class CellBroadcastAlertAudio extends Service implements TextToSpeech.OnI
     /**
      * Set volume for alerts.
      */
-    private void setAlertVolume(AlertType alertType) {
+    private void setAlertVolume() {
         if (mTelephonyManager.getCallState() != TelephonyManager.CALL_STATE_IDLE
                 || isOnEarphone()) {
             // If we are in a call, play the alert
@@ -648,7 +659,7 @@ public class CellBroadcastAlertAudio extends Service implements TextToSpeech.OnI
             // If override DnD is turned on,
             // we overwrite volume setting of STREAM_ALARM to full, play at
             // max possible volume, and reset it after it's finished.
-            setAlarmStreamVolumeToFull(alertType);
+            setAlarmStreamVolumeToFull();
         }
     }
 
@@ -671,10 +682,9 @@ public class CellBroadcastAlertAudio extends Service implements TextToSpeech.OnI
     /**
      * Set volume of STREAM_ALARM to full.
      */
-    private void setAlarmStreamVolumeToFull(AlertType alertType) {
+    private void setAlarmStreamVolumeToFull() {
         log("setting alarm volume to full for cell broadcast alerts.");
-        int streamType = (alertType == AlertType.INFO)
-                ? AudioManager.STREAM_NOTIFICATION : AudioManager.STREAM_ALARM;
+        int streamType = AudioManager.STREAM_ALARM;
         mUserSetAlarmVolume = mAudioManager.getStreamVolume(streamType);
         mResetAlarmVolumeNeeded = true;
         mAudioManager.setStreamVolume(streamType,
@@ -684,12 +694,10 @@ public class CellBroadcastAlertAudio extends Service implements TextToSpeech.OnI
     /**
      * Reset volume of STREAM_ALARM, if needed.
      */
-    private void resetAlarmStreamVolume(AlertType alertType) {
+    private void resetAlarmStreamVolume() {
         if (mResetAlarmVolumeNeeded) {
             log("resetting alarm volume to back to " + mUserSetAlarmVolume);
-            mAudioManager.setStreamVolume(alertType == AlertType.INFO
-                            ? AudioManager.STREAM_NOTIFICATION : AudioManager.STREAM_ALARM,
-                    mUserSetAlarmVolume, 0);
+            mAudioManager.setStreamVolume(AudioManager.STREAM_ALARM, mUserSetAlarmVolume, 0);
             mResetAlarmVolumeNeeded = false;
         }
     }

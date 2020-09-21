@@ -41,6 +41,7 @@ import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.telephony.cdma.CdmaSmsCbProgramData;
 import android.text.TextUtils;
+import android.util.EventLog;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -69,6 +70,10 @@ public class CellBroadcastReceiver extends BroadcastReceiver {
 
     // shared preference under developer settings
     private static final String ENABLE_ALERT_MASTER_PREF = "enable_alerts_master_toggle";
+    // SharedPreferences key used to store the last carrier
+    private static final String CARRIER_ID_FOR_DEFAULT_SUB_PREF = "carrier_id_for_default_sub";
+    // initial value for saved carrier ID. This helps us detect newly updated users or first boot
+    private static final int NO_PREVIOUS_CARRIER_ID = -2;
 
     public static final String ACTION_SERVICE_STATE = "android.intent.action.SERVICE_STATE";
     public static final String EXTRA_VOICE_REG_STATE = "voiceRegState";
@@ -122,12 +127,32 @@ public class CellBroadcastReceiver extends BroadcastReceiver {
         Resources res = getResourcesMethod();
 
         if (ACTION_MARK_AS_READ.equals(action)) {
-            final long deliveryTime = intent.getLongExtra(EXTRA_DELIVERY_TIME, -1);
-            getCellBroadcastTask(deliveryTime);
+            // The only way this'll be called is if someone tries to maliciously set something as
+            // read. Log an event.
+            EventLog.writeEvent(0x534e4554, "162741784", -1, null);
         } else if (CarrierConfigManager.ACTION_CARRIER_CONFIG_CHANGED.equals(action)) {
-            initializeSharedPreference();
-            enableLauncher();
-            startConfigService();
+            if (!intent.getBooleanExtra(
+                    "android.telephony.extra.REBROADCAST_ON_UNLOCK", false)) {
+                int subId = intent.getIntExtra(CarrierConfigManager.EXTRA_SUBSCRIPTION_INDEX,
+                        SubscriptionManager.INVALID_SUBSCRIPTION_ID);
+                initializeSharedPreference(context, subId);
+                enableLauncher();
+                startConfigServiceToEnableChannels();
+                // Some OEMs do not have legacyMigrationProvider active during boot-up, thus we
+                // need to retry data migration from another trigger point.
+                boolean hasMigrated = PreferenceManager.getDefaultSharedPreferences(mContext)
+                        .getBoolean(CellBroadcastDatabaseHelper.KEY_LEGACY_DATA_MIGRATION, false);
+                if (res.getBoolean(R.bool.retry_message_history_data_migration) && !hasMigrated) {
+                    // migrate message history from legacy app on a background thread.
+                    new CellBroadcastContentProvider.AsyncCellBroadcastTask(
+                            mContext.getContentResolver()).execute(
+                            (CellBroadcastContentProvider.CellBroadcastOperation) provider -> {
+                                provider.call(CellBroadcastContentProvider.CALL_MIGRATION_METHOD,
+                                        null, null);
+                                return true;
+                            });
+                }
+            }
         } else if (ACTION_SERVICE_STATE.equals(action)) {
             // lower layer clears channel configurations under APM, thus need to resend
             // configurations once moving back from APM. This should be fixed in lower layer
@@ -135,12 +160,12 @@ public class CellBroadcastReceiver extends BroadcastReceiver {
             int ss = intent.getIntExtra(EXTRA_VOICE_REG_STATE, ServiceState.STATE_IN_SERVICE);
             if (ss != ServiceState.STATE_POWER_OFF
                     && getServiceState(context) == ServiceState.STATE_POWER_OFF) {
-                startConfigService();
+                startConfigServiceToEnableChannels();
             }
             setServiceState(ss);
         } else if (CELLBROADCAST_START_CONFIG_ACTION.equals(action)
                 || SubscriptionManager.ACTION_DEFAULT_SMS_SUBSCRIPTION_CHANGED.equals(action)) {
-            startConfigService();
+            startConfigServiceToEnableChannels();
         } else if (Telephony.Sms.Intents.ACTION_SMS_EMERGENCY_CB_RECEIVED.equals(action) ||
                 Telephony.Sms.Intents.SMS_CB_RECEIVED_ACTION.equals(action)) {
             intent.setClass(mContext, CellBroadcastAlertService.class);
@@ -178,6 +203,80 @@ public class CellBroadcastReceiver extends BroadcastReceiver {
     }
 
     /**
+     * Send an intent to reset the users WEA settings if there is a new carrier on the default subId
+     *
+     * Do nothing in other cases:
+     *   - SIM insertion for the non-default subId
+     *   - SIM insertion/bootup with no new carrier
+     *   - SIM removal
+     *   - Device just received the update which adds this carrier tracking logic
+     * @param context the context
+     * @param subId subId of the carrier config event
+     */
+    private void resetSettingsIfCarrierChanged(Context context, int subId) {
+        // subId may be -1 if carrier config broadcast is being sent on SIM removal
+        if (subId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+            if (getPreviousCarrierIdForDefaultSub() == NO_PREVIOUS_CARRIER_ID) {
+                // on first boot only, if no SIM is inserted we save the carrier ID -1.
+                // This allows us to detect the carrier change from -1 to the carrier of the first
+                // SIM when it is inserted.
+                saveCarrierIdForDefaultSub(TelephonyManager.UNKNOWN_CARRIER_ID);
+            }
+            Log.d(TAG, "ignoring carrier config broadcast because subId=-1");
+            return;
+        }
+
+        final int defaultSubId = SubscriptionManager.getDefaultSubscriptionId();
+        Log.d(TAG, "subId=" + subId + " defaultSubId=" + defaultSubId);
+        if (defaultSubId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+            Log.d(TAG, "ignoring carrier config broadcast because defaultSubId=-1");
+            return;
+        }
+
+        if (subId != defaultSubId) {
+            Log.d(TAG, "ignoring carrier config broadcast for subId=" + subId
+                    + " because it does not match defaultSubId=" + defaultSubId);
+            return;
+        }
+
+        TelephonyManager tm = context.getSystemService(TelephonyManager.class);
+        // carrierId is loaded before carrier config, so this should be safe
+        int carrierId = tm.createForSubscriptionId(subId).getSimCarrierId();
+        if (carrierId == TelephonyManager.UNKNOWN_CARRIER_ID) {
+            Log.e(TAG, "ignoring unknown carrier ID");
+            return;
+        }
+
+        int previousCarrierId = getPreviousCarrierIdForDefaultSub();
+        if (previousCarrierId == NO_PREVIOUS_CARRIER_ID) {
+            // on first boot if a SIM is inserted, assume it is not new and don't apply settings
+            Log.d(TAG, "ignoring carrier config broadcast for subId=" + subId
+                    + " for first boot");
+            saveCarrierIdForDefaultSub(carrierId);
+            return;
+        }
+
+        if (carrierId != previousCarrierId) {
+            saveCarrierIdForDefaultSub(carrierId);
+            startConfigService(context,
+                    CellBroadcastConfigService.ACTION_UPDATE_SETTINGS_FOR_CARRIER);
+        } else {
+            Log.d(TAG, "ignoring carrier config broadcast for subId=" + subId
+                    + " because carrier has not changed. carrierId=" + carrierId);
+        }
+    }
+
+    private int getPreviousCarrierIdForDefaultSub() {
+        return getDefaultSharedPreferences()
+                .getInt(CARRIER_ID_FOR_DEFAULT_SUB_PREF, NO_PREVIOUS_CARRIER_ID);
+    }
+
+    private void saveCarrierIdForDefaultSub(int carrierId) {
+        getDefaultSharedPreferences().edit().putInt(CARRIER_ID_FOR_DEFAULT_SUB_PREF, carrierId)
+                .apply();
+    }
+
+        /**
      * Enable/disable cell broadcast receiver testing mode.
      *
      * @param on {@code true} if testing mode is on, otherwise off.
@@ -265,9 +364,12 @@ public class CellBroadcastReceiver extends BroadcastReceiver {
      * initialize shared preferences before starting services
      */
     @VisibleForTesting
-    public void initializeSharedPreference() {
+    public void initializeSharedPreference(Context context, int subId) {
         if (isSystemUser()) {
             Log.d(TAG, "initializeSharedPreference");
+
+            resetSettingsIfCarrierChanged(context, subId);
+
             SharedPreferences sp = getDefaultSharedPreferences();
 
             if (!sharedPrefsHaveDefaultValues()) {
@@ -287,7 +389,6 @@ public class CellBroadcastReceiver extends BroadcastReceiver {
                     sp.edit().putBoolean(CellBroadcastSettings.KEY_ENABLE_ALERTS_MASTER_TOGGLE,
                             false).apply();
                 }
-
             } else {
                 Log.d(TAG, "Skip setting default values of shared preference.");
             }
@@ -437,8 +538,8 @@ public class CellBroadcastReceiver extends BroadcastReceiver {
      * This method's purpose if to enable unit testing
      */
     @VisibleForTesting
-    public void startConfigService() {
-        startConfigService(mContext);
+    public void startConfigServiceToEnableChannels() {
+        startConfigService(mContext, CellBroadcastConfigService.ACTION_ENABLE_CHANNELS);
     }
 
     /**
@@ -455,12 +556,11 @@ public class CellBroadcastReceiver extends BroadcastReceiver {
      * Tell {@link CellBroadcastConfigService} to enable the CB channels.
      * @param context the broadcast receiver context
      */
-    static void startConfigService(Context context) {
+    static void startConfigService(Context context, String action) {
         if (isSystemUser(context)) {
-            Intent serviceIntent = new Intent(CellBroadcastConfigService.ACTION_ENABLE_CHANNELS,
-                    null, context, CellBroadcastConfigService.class);
-            Log.d(TAG, "Start Cell Broadcast configuration.");
-            context.startService(serviceIntent);
+            Log.d(TAG, "Start Cell Broadcast configuration for intent=" + action);
+            context.startService(new Intent(action, null, context,
+                    CellBroadcastConfigService.class));
         } else {
             Log.e(TAG, "startConfigService: Not system user.");
         }
