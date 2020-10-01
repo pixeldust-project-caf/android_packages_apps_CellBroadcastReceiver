@@ -19,7 +19,6 @@ package com.android.cellbroadcastreceiver;
 import static android.telephony.SmsCbMessage.MESSAGE_FORMAT_3GPP;
 import static android.telephony.SmsCbMessage.MESSAGE_FORMAT_3GPP2;
 
-import android.annotation.NonNull;
 import android.app.ActivityManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -40,7 +39,6 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.SystemProperties;
 import android.os.UserHandle;
-import android.os.UserManager;
 import android.preference.PreferenceManager;
 import android.provider.Telephony;
 import android.service.notification.StatusBarNotification;
@@ -174,7 +172,8 @@ public class CellBroadcastAlertService extends Service {
      * @param message Cell broadcast message
      * @return True if the message should be displayed to the user
      */
-    private boolean shouldDisplayMessage(SmsCbMessage message) {
+    @VisibleForTesting
+    public boolean shouldDisplayMessage(SmsCbMessage message) {
         TelephonyManager tm = ((TelephonyManager) mContext.getSystemService(
                 Context.TELEPHONY_SERVICE)).createForSubscriptionId(message.getSubscriptionId());
         if (tm.getEmergencyCallbackMode() && CellBroadcastSettings.getResources(
@@ -571,9 +570,13 @@ public class CellBroadcastAlertService extends Service {
                         ? range.mVibrationPattern
                         : CellBroadcastSettings.getResources(mContext, message.getSubscriptionId())
                         .getIntArray(R.array.default_vibration_pattern));
-
-        if (prefs.getBoolean(CellBroadcastSettings.KEY_OVERRIDE_DND, false)
-                || (range != null && range.mOverrideDnd)) {
+        // read key_override_dnd only when the toggle is visible.
+        // range.mOverrideDnd is per channel configuration. override_dnd is the main config
+        // applied for all channels.
+        Resources res = CellBroadcastSettings.getResources(mContext, message.getSubscriptionId());
+        if ((res.getBoolean(R.bool.show_override_dnd_settings)
+                && prefs.getBoolean(CellBroadcastSettings.KEY_OVERRIDE_DND, false))
+                || (range != null && range.mOverrideDnd) || res.getBoolean(R.bool.override_dnd)) {
             audioIntent.putExtra(CellBroadcastAlertAudio.ALERT_AUDIO_OVERRIDE_DND_EXTRA, true);
         }
 
