@@ -42,6 +42,7 @@ import android.telephony.SmsCbMessage;
 import android.telephony.SubscriptionManager;
 import android.text.Spannable;
 import android.text.SpannableString;
+import android.text.TextUtils;
 import android.text.format.DateUtils;
 import android.text.method.LinkMovementMethod;
 import android.text.util.Linkify;
@@ -59,6 +60,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.android.cellbroadcastreceiver.CellBroadcastChannelManager.CellBroadcastChannelRange;
 import com.android.internal.annotations.VisibleForTesting;
 
 import java.lang.annotation.Retention;
@@ -67,6 +69,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -413,10 +416,12 @@ public class CellBroadcastAlertDialog extends Activity {
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         if (!(isChangingConfigurations() || getLatestMessage() == null) && pm.isScreenOn()) {
             CellBroadcastAlertService.addToNotificationBar(getLatestMessage(), mMessageList,
-                    getApplicationContext(), true);
+                    getApplicationContext(), true, true);
+            // Stop playing alert sound/vibration/speech (if started)
+            stopService(new Intent(this, CellBroadcastAlertAudio.class));
         }
-        // Stop playing alert sound/vibration/speech (if started)
-        stopService(new Intent(this, CellBroadcastAlertAudio.class));
+        // Do not stop the audio here. Pressing power button should turn off screen but should not
+        // interrupt the audio/vibration
         super.onStop();
     }
 
@@ -532,6 +537,30 @@ public class CellBroadcastAlertDialog extends Activity {
         }
     }
 
+
+    /**
+     * If the carrier or country is configured to show the alert dialog title text in the
+     * language matching the message, this method returns the string in that language. Otherwise
+     * this method returns the string in the device's current language
+     *
+     * @param resId resource Id
+     * @param res Resources for the subId
+     * @param languageCode the ISO-639-1 language code for this message, or null if unspecified
+     */
+    private String overrideTranslation(int resId, Resources res, String languageCode) {
+        if (!TextUtils.isEmpty(languageCode)
+                && res.getBoolean(R.bool.override_alert_title_language_to_match_message_locale)) {
+            // TODO change resources to locale from message
+            Configuration conf = res.getConfiguration();
+            conf = new Configuration(conf);
+            conf.setLocale(new Locale(languageCode));
+            Context localizedContext = getApplicationContext().createConfigurationContext(conf);
+            return localizedContext.getResources().getText(resId).toString();
+        } else {
+            return res.getText(resId).toString();
+        }
+    }
+
     /**
      * Update alert text when a new emergency alert arrives.
      * @param message CB message which is used to update alert text.
@@ -540,17 +569,20 @@ public class CellBroadcastAlertDialog extends Activity {
         Context context = getApplicationContext();
         int titleId = CellBroadcastResources.getDialogTitleResource(context, message);
 
-        String title = getText(titleId).toString();
+        Resources res = CellBroadcastSettings.getResources(context, message.getSubscriptionId());
+        String title = overrideTranslation(titleId, res, message.getLanguageCode());
         TextView titleTextView = findViewById(R.id.alertTitle);
 
-        Resources res = CellBroadcastSettings.getResources(context, message.getSubscriptionId());
         if (titleTextView != null) {
             if (res.getBoolean(R.bool.show_date_time_title)) {
                 titleTextView.setSingleLine(false);
-                title += "\n" + DateUtils.formatDateTime(context, message.getReceivedTime(),
-                        DateUtils.FORMAT_NO_NOON_MIDNIGHT | DateUtils.FORMAT_SHOW_TIME
+                int flags = DateUtils.FORMAT_NO_NOON_MIDNIGHT | DateUtils.FORMAT_SHOW_TIME
                                 | DateUtils.FORMAT_ABBREV_ALL | DateUtils.FORMAT_SHOW_DATE
-                                | DateUtils.FORMAT_CAP_AMPM);
+                                | DateUtils.FORMAT_CAP_AMPM;
+                if (res.getBoolean(R.bool.show_date_time_with_year_title)) {
+                    flags |= DateUtils.FORMAT_SHOW_YEAR;
+                }
+                title += "\n" + DateUtils.formatDateTime(context, message.getReceivedTime(), flags);
             }
 
             setTitle(title);
@@ -666,6 +698,19 @@ public class CellBroadcastAlertDialog extends Activity {
                 }
             }
             Log.d(TAG, "onNewIntent called with message list of size " + newMessageList.size());
+
+            // For emergency alerts, keep screen on so the user can read it
+            SmsCbMessage message = getLatestMessage();
+            if (message != null) {
+                CellBroadcastChannelManager channelManager = new CellBroadcastChannelManager(
+                        this, message.getSubscriptionId());
+                if (channelManager.isEmergencyMessage(message)) {
+                    Log.d(TAG, "onCreate setting screen on timer for emergency alert for sub "
+                            + message.getSubscriptionId());
+                    mScreenOffHandler.startScreenOnTimer();
+                }
+            }
+
             hideOptOutDialog(); // Hide opt-out dialog when new alert coming
             updateAlertText(getLatestMessage());
             // If the new intent was sent from a notification, dismiss it.
@@ -709,6 +754,10 @@ public class CellBroadcastAlertDialog extends Activity {
             return;
         }
 
+        // Remove the read message from the notification bar.
+        // e.g, read the message from emergency alert history, need to update the notification bar.
+        removeReadMessageFromNotificationBar(lastMessage, getApplicationContext());
+
         // Mark the alert as read.
         final long deliveryTime = lastMessage.getReceivedTime();
 
@@ -718,9 +767,15 @@ public class CellBroadcastAlertDialog extends Activity {
                         -> provider.markBroadcastRead(Telephony.CellBroadcasts.DELIVERY_TIME,
                         deliveryTime));
 
-        // Set the opt-out dialog flag if this is a CMAS alert (other than Presidential Alert).
-        if (lastMessage.isCmasMessage() && lastMessage.getCmasWarningInfo().getMessageClass()
-                != SmsCbCmasInfo.CMAS_CLASS_PRESIDENTIAL_LEVEL_ALERT) {
+        // Set the opt-out dialog flag if this is a CMAS alert (other than Always-on alert e.g,
+        // Presidential alert).
+        CellBroadcastChannelManager channelManager = new CellBroadcastChannelManager(
+                getApplicationContext(),
+                lastMessage.getSubscriptionId());
+        CellBroadcastChannelRange range = channelManager
+                .getCellBroadcastChannelRangeFromMessage(lastMessage);
+
+        if (range!= null && !range.mAlwaysOn) {
             mShowOptOutDialog = true;
         }
 
@@ -729,8 +784,6 @@ public class CellBroadcastAlertDialog extends Activity {
         if (nextMessage != null) {
             updateAlertText(nextMessage);
             int subId = nextMessage.getSubscriptionId();
-            CellBroadcastChannelManager channelManager = new CellBroadcastChannelManager(
-                    getApplicationContext(), subId);
             if (channelManager.isEmergencyMessage(nextMessage)) {
                 mAnimationHandler.startIconAnimation(subId);
             } else {
@@ -762,9 +815,6 @@ public class CellBroadcastAlertDialog extends Activity {
                 }
             }
         }
-        NotificationManager notificationManager =
-                (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        notificationManager.cancel(CellBroadcastAlertService.NOTIFICATION_ID);
         finish();
     }
 
@@ -835,5 +885,29 @@ public class CellBroadcastAlertDialog extends Activity {
                 message.getSubscriptionId()).getString(R.string.message_copied);
         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show();
         return true;
+    }
+
+    /**
+     * Remove read message from the notification bar, update the notification text, count or cancel
+     * the notification if there is no un-read messages.
+     * @param message The dismissed/read message to be removed from the notification bar
+     * @param context
+     */
+    private void removeReadMessageFromNotificationBar(SmsCbMessage message, Context context) {
+        Log.d(TAG, "removeReadMessageFromNotificationBar, msg: " + message.toString());
+        ArrayList<SmsCbMessage> unreadMessageList = CellBroadcastReceiverApp
+                .removeReadMessage(message);
+        if (unreadMessageList.isEmpty()) {
+            Log.d(TAG, "removeReadMessageFromNotificationBar, cancel notification");
+            NotificationManager notificationManager = getSystemService(NotificationManager.class);
+            notificationManager.cancel(CellBroadcastAlertService.NOTIFICATION_ID);
+        } else {
+            Log.d(TAG, "removeReadMessageFromNotificationBar, update count to "
+                    + unreadMessageList.size() );
+            // do not alert if remove unread messages from the notification bar.
+           CellBroadcastAlertService.addToNotificationBar(
+                   CellBroadcastReceiverApp.getLatestMessage(),
+                   unreadMessageList, context,false, false);
+        }
     }
 }

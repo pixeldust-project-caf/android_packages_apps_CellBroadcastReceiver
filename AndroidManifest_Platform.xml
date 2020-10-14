@@ -67,7 +67,7 @@
 
     <activity android:name="CellBroadcastListActivity"
         android:label="@string/app_label"
-        android:theme="@style/CellBroadcastSettingsTheme"
+        android:theme="@style/CellBroadcastListActivityTheme"
         android:exported="true"
         android:configChanges="orientation|keyboardHidden" >
       <intent-filter>
@@ -104,7 +104,7 @@
         android:exported="true" />
 
     <activity android:name="CellBroadcastAlertDialog"
-        android:theme="@android:style/Theme.DeviceDefault.Light.Dialog"
+        android:theme="@style/CellBroadcastAlertTheme"
         android:launchMode="singleTask"
         android:exported="false"
         android:excludeFromRecents="true"
@@ -135,6 +135,11 @@
         <!-- CMAS: To toggle test mode for cell broadcast testing on userdebug build -->
         <data android:scheme="android_secret_code" android:host="2627" />
       </intent-filter>
+    </receiver>
+
+    <receiver android:name="com.android.cellbroadcastreceiver.CellBroadcastInternalReceiver"
+              android:exported="false">
+      <!-- No intent filter on purpose: this should only receive explicit intents -->
     </receiver>
 
     <provider

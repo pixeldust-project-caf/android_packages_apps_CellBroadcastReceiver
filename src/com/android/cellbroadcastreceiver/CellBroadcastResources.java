@@ -16,6 +16,7 @@
 
 package com.android.cellbroadcastreceiver;
 
+import android.annotation.NonNull;
 import android.content.Context;
 import android.graphics.Typeface;
 import android.telephony.SmsCbCmasInfo;
@@ -278,6 +279,30 @@ public class CellBroadcastResources {
             default:
                 return 0;
         }
+    }
+
+    /**
+     * @return the string resource ID for the SMS sender address.
+     */
+    public static int getSmsSenderAddressResource(@NonNull Context context,
+            @NonNull SmsCbMessage message) {
+        CellBroadcastChannelManager channelManager = new CellBroadcastChannelManager(
+                context, message.getSubscriptionId());
+        final int serviceCategory = message.getServiceCategory();
+        // store to different SMS threads based on channel mappings.
+        if (channelManager.checkCellBroadcastChannelRange(serviceCategory,
+                R.array.cmas_presidential_alerts_channels_range_strings)) {
+            return R.string.sms_cb_sender_name_presidential;
+        }
+        if (channelManager.checkCellBroadcastChannelRange(serviceCategory,
+                R.array.emergency_alerts_channels_range_strings)) {
+            return R.string.sms_cb_sender_name_emergency;
+        }
+        if (channelManager.checkCellBroadcastChannelRange(serviceCategory,
+                R.array.public_safety_messages_channels_range_strings)) {
+            return R.string.sms_cb_sender_name_public_safety;
+        }
+        return R.string.sms_cb_sender_name_default;
     }
 
     static int getDialogTitleResource(Context context, SmsCbMessage message) {

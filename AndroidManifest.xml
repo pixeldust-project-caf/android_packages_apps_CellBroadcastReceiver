@@ -21,7 +21,19 @@
         android:versionCode="300000000"
         android:versionName="R-initial">
 
-    <original-package android:name="com.android.cellbroadcastreceiver" />
+    <!-- Needed for TTS when targetSdkVersion is 30 -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
+    <!-- Needed for TTS when targetSdkVersion is 30 -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
 
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_EMERGENCY_BROADCAST" />
@@ -32,7 +44,6 @@
     <uses-permission android:name="android.permission.INTERACT_ACROSS_USERS" />
     <uses-permission android:name="android.permission.MANAGE_USERS" />
     <uses-permission android:name="android.permission.DEVICE_POWER" />
-    <uses-permission android:name="android.permission.GRANT_RUNTIME_PERMISSIONS_TO_TELEPHONY_DEFAULTS" />
     <uses-permission android:name="android.permission.START_ACTIVITIES_FROM_BACKGROUND" />
     <uses-permission android:name="android.permission.READ_CELL_BROADCASTS" />
     <uses-permission android:name="android.permission.READ_SMS" />
@@ -72,7 +83,8 @@
 
         <activity android:name="com.android.cellbroadcastreceiver.CellBroadcastListActivity"
                   android:label="@string/app_label"
-                  android:theme="@style/CellBroadcastSettingsTheme"
+                  android:launchMode="singleTask"
+                  android:theme="@style/CellBroadcastListActivityTheme"
                   android:exported="true"
                   android:configChanges="orientation|keyboardHidden" >
             <intent-filter>
@@ -105,6 +117,7 @@
         <!-- Settings opened by ListActivity menu, Settings app link or opt-out dialog. -->
         <activity android:name="com.android.cellbroadcastreceiver.CellBroadcastSettings"
                   android:theme="@style/CellBroadcastSettingsTheme"
+                  android:launchMode="singleTask"
                   android:label="@string/sms_cb_settings"
                   android:exported="true" />
 
@@ -140,6 +153,11 @@
                 <!-- CMAS: To toggle test mode for cell broadcast testing on userdebug build -->
                 <data android:scheme="android_secret_code" android:host="2627" />
             </intent-filter>
+        </receiver>
+
+        <receiver android:name="com.android.cellbroadcastreceiver.CellBroadcastInternalReceiver"
+                  android:exported="false">
+            <!-- No intent filter on purpose: this should only receive explicit intents -->
         </receiver>
 
         <provider
