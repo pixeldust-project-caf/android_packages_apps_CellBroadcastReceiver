@@ -61,6 +61,8 @@
     <string name="enable_alerts_master_toggle_title" msgid="1457904343636699446">"সতৰ্কবাণীযুক্ত বাৰ্তাসমূহ লাভ কৰিবলৈ অনুমতি দিয়ক"</string>
     <string name="enable_alerts_master_toggle_summary" msgid="5583168548073938617">"অনাতাঁৰ জৰুৰীকালীন সতৰ্কবাৰ্তাৰ জাননীসমূহ পাওক"</string>
     <string name="alert_reminder_interval_title" msgid="3283595202268218149">"সতৰ্কতা স্মৰণ কৰোৱাৰ সুবিধা"</string>
+    <string name="enable_alert_speech_title" msgid="8052104771053526941">"সতৰ্কবাণী পঢ়ি শুনাওক"</string>
+    <string name="enable_alert_speech_summary" msgid="2855629032890937297">"অনাতাঁৰ জৰুৰীকালীন সতৰ্কবাৰ্তাৰ বাৰ্তাসমূহ ক’বলৈ পাঠৰ পৰা কথনৰ সুবিধাটো ব্যৱহাৰ কৰক"</string>
     <string name="alert_reminder_dialog_title" msgid="2299010977651377315">"কোনো স্বাভাৱিক ভলিউমত ৰিমাইণ্ডাৰ ধ্বনি প্লে\' হ\'ব"</string>
     <string name="emergency_alert_history_title" msgid="8310173569237268431">"জৰুৰীকালীন সতৰ্কবাণীৰ ইতিহাস"</string>
     <string name="alert_preferences_title" msgid="6001469026393248468">"সতর্কতা সম্পৰ্কীয় অগ্ৰাধিকাৰসমূহ"</string>
@@ -82,6 +84,9 @@
     <string name="enable_emergency_alerts_message_summary" msgid="7574617515441602546">"জীৱন-সংশয়ী ঘটনাসমূহৰ বিষয়ে সতৰ্ক কৰক"</string>
     <string name="enable_cmas_test_alerts_title" msgid="7194966927004755266">"পৰীক্ষা সম্পর্কীয় সতৰ্কবার্তাসমূহ"</string>
     <string name="enable_cmas_test_alerts_summary" msgid="2083089933271720217">"সুৰক্ষা সতৰ্কবাৰ্তা ব্যৱস্থাৰ পৰা বাহকৰ আৰু মাহেকীয়া পৰীক্ষাসমূহ লাভ কৰক"</string>
+    <!-- no translation found for enable_exercise_test_alerts_title (6030780598569873865) -->
+    <skip />
+    <string name="enable_exercise_test_alerts_summary" msgid="4276766794979567304">"জৰুৰীকালীন সতৰ্কবাৰ্তা পাওক: অনুশীলন/ড্ৰিল বাৰ্তা"</string>
     <string name="enable_alert_vibrate_title" msgid="5421032189422312508">"কম্পন"</string>
     <string name="override_dnd_title" msgid="5120805993144214421">"সদায় সম্পূর্ণ ভলিউমত সতর্ক কৰক"</string>
     <string name="override_dnd_summary" msgid="9026675822792800258">"অসুবিধা নিদিব আৰু অন্য ধ্বনিৰ ছেটিংসমূহ উপেক্ষা কৰক"</string>

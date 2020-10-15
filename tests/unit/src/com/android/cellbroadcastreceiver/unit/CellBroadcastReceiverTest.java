@@ -28,6 +28,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
+import android.content.ContentProvider;
+import android.content.ContentProviderClient;
 import android.content.ContentResolver;
 import android.content.IContentProvider;
 import android.content.Intent;
@@ -45,6 +47,7 @@ import android.telephony.SubscriptionManager;
 import android.telephony.cdma.CdmaSmsCbProgramData;
 
 import com.android.cellbroadcastreceiver.CellBroadcastAlertService;
+import com.android.cellbroadcastreceiver.CellBroadcastContentProvider;
 import com.android.cellbroadcastreceiver.CellBroadcastListActivity;
 import com.android.cellbroadcastreceiver.CellBroadcastReceiver;
 import com.android.cellbroadcastreceiver.CellBroadcastSettings;
@@ -128,6 +131,8 @@ public class CellBroadcastReceiverTest extends CellBroadcastTest {
     @Test
     public void testOnReceive_actionCarrierConfigChanged() {
         doReturn(CarrierConfigManager.ACTION_CARRIER_CONFIG_CHANGED).when(mIntent).getAction();
+        doReturn(mDefaultSharedPreferences).when(mCellBroadcastReceiver)
+                .getDefaultSharedPreferences();
         doNothing().when(mCellBroadcastReceiver).initializeSharedPreference(any(), anyInt());
         doNothing().when(mCellBroadcastReceiver).enableLauncher();
         mCellBroadcastReceiver.onReceive(mContext, mIntent);
@@ -145,6 +150,15 @@ public class CellBroadcastReceiverTest extends CellBroadcastTest {
         verify(mCellBroadcastReceiver, never()).initializeSharedPreference(any(), anyInt());
         verify(mCellBroadcastReceiver, never()).startConfigServiceToEnableChannels();
         verify(mCellBroadcastReceiver, never()).enableLauncher();
+    }
+
+    @Test
+    public void testOnReceive_actionBootCompleted() {
+        doReturn(mContentResolver).when(mContext).getContentResolver();
+        doReturn(mContentProviderClient).when(mContentResolver).acquireContentProviderClient(
+                "cellbroadcasts-app");
+        doReturn(Intent.ACTION_BOOT_COMPLETED).when(mIntent).getAction();
+        mCellBroadcastReceiver.onReceive(mContext, mIntent);
     }
 
     @Test

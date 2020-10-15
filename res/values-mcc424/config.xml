@@ -29,7 +29,7 @@
     <bool name="state_local_test_alerts_enabled_default">true</bool>
 
     <!-- Play alert sound in full volume regardless Do Not Disturb is on -->
-    <bool name="override_dnd_default">true</bool>
+    <bool name="override_dnd">true</bool>
     <!-- 4379, 4392 -->
     <string-array name="emergency_alerts_channels_range_strings" translatable="false">
         <item>0x111B:rat=gsm, emergency=true</item>
@@ -70,6 +70,8 @@
     </string-array>
     <!-- Whether enabling copy message text into clipboard by long press -->
     <bool name="enable_text_copy">false</bool>
+    <!-- Text links generating method. does not allow text to be copied. so we can't use smart linkify. -->
+    <string name="link_method" translatable="false">legacy_linkify</string>
     <!-- Whether to override the language of the alert dialog's title to match the message locale -->
     <bool name="override_alert_title_language_to_match_message_locale">true</bool>
 </resources>

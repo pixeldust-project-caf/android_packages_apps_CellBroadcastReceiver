@@ -47,18 +47,22 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import android.app.Fragment;
+import android.app.FragmentManager;
 import android.app.NotificationManager;
 import android.database.Cursor;
 import android.database.MatrixCursor;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.Looper;
+import android.os.UserManager;
 import android.provider.Telephony;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.WindowManager;
 
-import com.android.cellbroadcastreceiver.CellBroadcastAlertService;
 import com.android.cellbroadcastreceiver.CellBroadcastListActivity;
 import com.android.cellbroadcastreceiver.CellBroadcastListItem;
 import com.android.cellbroadcastreceiver.R;
@@ -74,9 +78,13 @@ import java.util.List;
 
 public class CellBroadcastListActivityTest extends
         CellBroadcastActivityTestCase<CellBroadcastListActivity> {
+    private static final int TEST_TIMEOUT_MILLIS = 1000;
 
     @Mock
     private NotificationManager mMockNotificationManager;
+
+    @Mock
+    private UserManager mMockUserManager;
 
 
     @Captor
@@ -87,6 +95,9 @@ public class CellBroadcastListActivityTest extends
         super.setUp();
         MockitoAnnotations.initMocks(this);
         injectSystemService(NotificationManager.class, mMockNotificationManager);
+        injectSystemService(UserManager.class, mMockUserManager);
+
+        doReturn(true).when(mMockUserManager).isAdminUser();
     }
 
     @After
@@ -214,17 +225,13 @@ public class CellBroadcastListActivityTest extends
 
         // must call looper.prepare to create alertdialog
         Looper.prepare();
-        boolean alertDialogCreated = false;
-        try {
-            activity.mListFragment.onContextItemSelected(mockMenuItem);
-        } catch (WindowManager.BadTokenException e) {
-            // We can't mock WindowManager because WindowManagerImpl is final, so instead we just
-            // verify that this exception is thrown when we try to create the AlertDialog
-            alertDialogCreated = true;
-        }
+        activity.mListFragment.onContextItemSelected(mockMenuItem);
+        waitForHandlerAction(Handler.getMain(), TEST_TIMEOUT_MILLIS);
 
-        assertTrue("onContextItemSelected - MENU_DELETE should create alert dialog",
-                alertDialogCreated);
+        assertNotNull("onContextItemSelected - MENU_DELETE_ALL should create alert dialog",
+                activity.mListFragment.getFragmentManager().findFragmentByTag(
+                        CellBroadcastListActivity.CursorLoaderListFragment.KEY_DELETE_DIALOG));
+
         verify(mockCursor, atLeastOnce()).getColumnIndexOrThrow(eq(Telephony.CellBroadcasts._ID));
         stopActivity();
     }
@@ -306,17 +313,12 @@ public class CellBroadcastListActivityTest extends
 
         // must call looper.prepare to create alertdialog
         Looper.prepare();
-        boolean alertDialogCreated = false;
-        try {
-            activity.mListFragment.onOptionsItemSelected(mockMenuItem);
-        } catch (WindowManager.BadTokenException e) {
-            // We can't mock WindowManager because WindowManagerImpl is final, so instead we just
-            // verify that this exception is thrown when we try to create the AlertDialog
-            alertDialogCreated = true;
-        }
+        activity.mListFragment.onOptionsItemSelected(mockMenuItem);
+        waitForHandlerAction(Handler.getMain(), TEST_TIMEOUT_MILLIS);
 
-        assertTrue("onContextItemSelected - MENU_DELETE_ALL should create alert dialog",
-                alertDialogCreated);
+        assertNotNull("onContextItemSelected - MENU_DELETE_ALL should create alert dialog",
+                activity.mListFragment.getFragmentManager().findFragmentByTag(
+                        CellBroadcastListActivity.CursorLoaderListFragment.KEY_DELETE_DIALOG));
 
         // "show all messages" and "show regular messages" options return false to allow normal
         // menu  processing to continue

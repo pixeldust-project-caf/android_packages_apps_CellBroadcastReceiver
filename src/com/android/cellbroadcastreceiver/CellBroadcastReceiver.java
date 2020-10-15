@@ -114,8 +114,7 @@ public class CellBroadcastReceiver extends BroadcastReceiver {
      */
     @VisibleForTesting
     public Resources getResourcesMethod() {
-        return CellBroadcastSettings.getResources(mContext,
-                SubscriptionManager.DEFAULT_SUBSCRIPTION_ID);
+        return CellBroadcastSettings.getResourcesForDefaultSubId(mContext);
     }
 
     @Override
@@ -140,7 +139,7 @@ public class CellBroadcastReceiver extends BroadcastReceiver {
                 startConfigServiceToEnableChannels();
                 // Some OEMs do not have legacyMigrationProvider active during boot-up, thus we
                 // need to retry data migration from another trigger point.
-                boolean hasMigrated = PreferenceManager.getDefaultSharedPreferences(mContext)
+                boolean hasMigrated = getDefaultSharedPreferences()
                         .getBoolean(CellBroadcastDatabaseHelper.KEY_LEGACY_DATA_MIGRATION, false);
                 if (res.getBoolean(R.bool.retry_message_history_data_migration) && !hasMigrated) {
                     // migrate message history from legacy app on a background thread.
@@ -197,6 +196,13 @@ public class CellBroadcastReceiver extends BroadcastReceiver {
                         .sendBroadcast(new Intent(ACTION_TESTING_MODE_CHANGED));
                 log(msg);
             }
+        } else if (Intent.ACTION_BOOT_COMPLETED.equals(action)) {
+            new CellBroadcastContentProvider.AsyncCellBroadcastTask(
+                    mContext.getContentResolver()).execute((CellBroadcastContentProvider
+                    .CellBroadcastOperation) provider -> {
+                        provider.resyncToSmsInbox(mContext);
+                        return true;
+                    });
         } else {
             Log.w(TAG, "onReceive() unexpected action " + action);
         }
@@ -323,9 +329,8 @@ public class CellBroadcastReceiver extends BroadcastReceiver {
         String currentIntervalDefault = sp.getString(CURRENT_INTERVAL_DEFAULT, "0");
 
         // If interval default changes, reset the interval to the new default value.
-        String newIntervalDefault = CellBroadcastSettings.getResources(mContext,
-                SubscriptionManager.DEFAULT_SUBSCRIPTION_ID).getString(
-                        R.string.alert_reminder_interval_in_min_default);
+        String newIntervalDefault = CellBroadcastSettings.getResourcesForDefaultSubId(mContext)
+                .getString(R.string.alert_reminder_interval_in_min_default);
         if (!newIntervalDefault.equals(currentIntervalDefault)) {
             Log.d(TAG, "Default interval changed from " + currentIntervalDefault + " to " +
                     newIntervalDefault);
@@ -342,7 +347,7 @@ public class CellBroadcastReceiver extends BroadcastReceiver {
         }
     }
     /**
-     * This method's purpose if to enable unit testing
+     * This method's purpose is to enable unit testing
      * @return sharedePreferences for mContext
      */
     @VisibleForTesting

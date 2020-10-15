@@ -82,14 +82,13 @@ public class CellBroadcastSearchIndexableProvider extends SearchIndexablesProvid
     }
 
     /**
-     * this method is to make this class unit-testable, because CellBroadcastSettings.getResources()
-     * is a static method and cannot be stubbed.
+     * this method is to make this class unit-testable, because
+     * CellBroadcastSettings.getResourcesForDefaultSubId() is a static method and cannot be stubbed.
      * @return resources
      */
     @VisibleForTesting
     public Resources getResourcesMethod() {
-        return CellBroadcastSettings.getResources(getContextMethod(),
-                SubscriptionManager.DEFAULT_SUBSCRIPTION_ID);
+        return CellBroadcastSettings.getResourcesForDefaultSubId(getContextMethod());
     }
 
     /**
@@ -182,6 +181,15 @@ public class CellBroadcastSearchIndexableProvider extends SearchIndexablesProvid
             ref = new Object[1];
             ref[COLUMN_INDEX_NON_INDEXABLE_KEYS_KEY_VALUE] =
                     CellBroadcastSettings.KEY_ENABLE_CMAS_PRESIDENTIAL_ALERTS;
+            cursor.addRow(ref);
+        }
+
+        if (!CellBroadcastSettings.getResources(getContextMethod(),
+                SubscriptionManager.DEFAULT_SUBSCRIPTION_ID)
+                .getBoolean(R.bool.show_alert_speech_setting)) {
+            ref = new Object[1];
+            ref[COLUMN_INDEX_NON_INDEXABLE_KEYS_KEY_VALUE] =
+                    CellBroadcastSettings.KEY_ENABLE_ALERT_SPEECH;
             cursor.addRow(ref);
         }
 

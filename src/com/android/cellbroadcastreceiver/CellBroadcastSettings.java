@@ -19,6 +19,7 @@ package com.android.cellbroadcastreceiver;
 import android.annotation.NonNull;
 import android.app.ActionBar;
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.app.Fragment;
 import android.app.backup.BackupManager;
 import android.content.BroadcastReceiver;
@@ -78,6 +79,9 @@ public class CellBroadcastSettings extends Activity {
     // Enable vibration on alert (unless main volume is silent).
     public static final String KEY_ENABLE_ALERT_VIBRATE = "enable_alert_vibrate";
 
+    // Speak contents of alert after playing the alert sound.
+    public static final String KEY_ENABLE_ALERT_SPEECH = "enable_alert_speech";
+
     // Play alert sound in full volume regardless Do Not Disturb is on.
     public static final String KEY_OVERRIDE_DND = "override_dnd";
 
@@ -109,6 +113,9 @@ public class CellBroadcastSettings extends Activity {
     // Whether to display monthly test messages (default is disabled).
     public static final String KEY_ENABLE_TEST_ALERTS = "enable_test_alerts";
 
+    // Whether to display exercise test alerts.
+    public static final String KEY_ENABLE_EXERCISE_ALERTS = "enable_exercise_alerts";
+
     // Whether to display state/local test messages (default disabled).
     public static final String KEY_ENABLE_STATE_LOCAL_TEST_ALERTS =
             "enable_state_local_test_alerts";
@@ -138,6 +145,19 @@ public class CellBroadcastSettings extends Activity {
 
     // Resource cache
     private static final Map<Integer, Resources> sResourcesCache = new HashMap<>();
+
+    // Intent sent from cellbroadcastreceiver to notify cellbroadcastservice that area info update
+    // is disabled/enabled.
+    private static final String AREA_INFO_UPDATE_ACTION =
+            "com.android.cellbroadcastreceiver.action.AREA_UPDATE_INFO_ENABLED";
+    private static final String AREA_INFO_UPDATE_ENABLED_EXTRA = "enable";
+
+    /**
+     * This permission is only granted to the cellbroadcast mainline module and thus can be
+     * used for permission check within CBR and CBS.
+     */
+    private static final String CBR_MODULE_PERMISSION =
+            "com.android.cellbroadcastservice.FULL_ACCESS_CELL_BROADCAST_HISTORY";
 
     // Test override for disabling the subId specific resources
     private static boolean sUseResourcesForSubId = true;
@@ -189,9 +209,7 @@ public class CellBroadcastSettings extends Activity {
     }
 
     /**
-     * Reset all user values for preferences (stored in shared preferences). Default values will
-     * be applied the next time the user opens WEA Settings page. Do not reset main toggle
-     * (KEY_ENABLE_ALERTS_MASTER_TOGGLE).
+     * Reset all user values for preferences (stored in shared preferences).
      *
      * @param c the application context
      */
@@ -203,13 +221,21 @@ public class CellBroadcastSettings extends Activity {
                 .remove(KEY_ENABLE_PUBLIC_SAFETY_MESSAGES)
                 .remove(KEY_ENABLE_EMERGENCY_ALERTS)
                 .remove(KEY_ALERT_REMINDER_INTERVAL)
+                .remove(KEY_ENABLE_ALERT_SPEECH)
                 .remove(KEY_OVERRIDE_DND)
                 .remove(KEY_ENABLE_AREA_UPDATE_INFO_ALERTS)
                 .remove(KEY_ENABLE_TEST_ALERTS)
                 .remove(KEY_ENABLE_STATE_LOCAL_TEST_ALERTS)
                 .remove(KEY_ENABLE_ALERT_VIBRATE)
                 .remove(KEY_ENABLE_CMAS_PRESIDENTIAL_ALERTS)
-                .remove(KEY_RECEIVE_CMAS_IN_SECOND_LANGUAGE);
+                .remove(KEY_RECEIVE_CMAS_IN_SECOND_LANGUAGE)
+                .remove(KEY_ENABLE_EXERCISE_ALERTS);
+        // If the device is in test harness mode, reset main toggle should only happen on the
+        // first boot.
+        if (!ActivityManager.isRunningInUserTestHarness()) {
+          Log.d(TAG, "In not test harness mode. reset main toggle.");
+          e.remove(KEY_ENABLE_ALERTS_MASTER_TOGGLE);
+        }
         PackageManager pm = c.getPackageManager();
         if (pm.hasSystemFeature(PackageManager.FEATURE_WATCH)) {
             e.remove(KEY_WATCH_ALERT_REMINDER);
@@ -235,9 +261,11 @@ public class CellBroadcastSettings extends Activity {
         private TwoStatePreference mPublicSafetyMessagesChannelCheckBox;
         private TwoStatePreference mEmergencyAlertsCheckBox;
         private ListPreference mReminderInterval;
+        private TwoStatePreference mSpeechCheckBox;
         private TwoStatePreference mOverrideDndCheckBox;
         private TwoStatePreference mAreaUpdateInfoCheckBox;
         private TwoStatePreference mTestCheckBox;
+        private TwoStatePreference mExerciseTestCheckBox;
         private TwoStatePreference mStateLocalTestCheckBox;
         private TwoStatePreference mEnableVibrateCheckBox;
         private Preference mAlertHistory;
@@ -281,12 +309,15 @@ public class CellBroadcastSettings extends Activity {
                     findPreference(KEY_ENABLE_EMERGENCY_ALERTS);
             mReminderInterval = (ListPreference)
                     findPreference(KEY_ALERT_REMINDER_INTERVAL);
+            mSpeechCheckBox = (TwoStatePreference)
+                    findPreference(KEY_ENABLE_ALERT_SPEECH);
             mOverrideDndCheckBox = (TwoStatePreference)
                     findPreference(KEY_OVERRIDE_DND);
             mAreaUpdateInfoCheckBox = (TwoStatePreference)
                     findPreference(KEY_ENABLE_AREA_UPDATE_INFO_ALERTS);
             mTestCheckBox = (TwoStatePreference)
                     findPreference(KEY_ENABLE_TEST_ALERTS);
+            mExerciseTestCheckBox = (TwoStatePreference) findPreference(KEY_ENABLE_EXERCISE_ALERTS);
             mStateLocalTestCheckBox = (TwoStatePreference)
                     findPreference(KEY_ENABLE_STATE_LOCAL_TEST_ALERTS);
             mAlertHistory = findPreference(KEY_EMERGENCY_ALERT_HISTORY);
@@ -345,8 +376,7 @@ public class CellBroadcastSettings extends Activity {
 
             initPreferences();
 
-            Resources res = CellBroadcastSettings.getResources(getContext(),
-                    SubscriptionManager.DEFAULT_SUBSCRIPTION_ID);
+            Resources res = CellBroadcastSettings.getResourcesForDefaultSubId(getContext());
 
             mDisableSevereWhenExtremeDisabled = res.getBoolean(
                     R.bool.disable_severe_when_extreme_disabled);
@@ -372,6 +402,19 @@ public class CellBroadcastSettings extends Activity {
                             if (pref.getKey().equals(KEY_ENABLE_ALERTS_MASTER_TOGGLE)) {
                                 boolean isEnableAlerts = (Boolean) newValue;
                                 setAlertsEnabled(isEnableAlerts);
+                            }
+
+                            // check if area update was disabled
+                            if (pref.getKey().equals(KEY_ENABLE_AREA_UPDATE_INFO_ALERTS)) {
+                                boolean isEnabledAlert = (Boolean) newValue;
+                                if (!isEnabledAlert) {
+                                    Intent areaInfoIntent = new Intent(AREA_INFO_UPDATE_ACTION);
+                                    areaInfoIntent.putExtra(AREA_INFO_UPDATE_ENABLED_EXTRA,
+                                            isEnabledAlert);
+                                    // sending broadcast protected by the permission which is only
+                                    // granted for CBR mainline module.
+                                    getContext().sendBroadcast(areaInfoIntent, CBR_MODULE_PERMISSION);
+                                }
                             }
 
                             // Notify backup manager a backup pass is needed.
@@ -417,6 +460,9 @@ public class CellBroadcastSettings extends Activity {
             }
             if (mTestCheckBox != null) {
                 mTestCheckBox.setOnPreferenceChangeListener(startConfigServiceListener);
+            }
+            if (mExerciseTestCheckBox != null) {
+                mExerciseTestCheckBox.setOnPreferenceChangeListener(startConfigServiceListener);
             }
             if (mStateLocalTestCheckBox != null) {
                 mStateLocalTestCheckBox.setOnPreferenceChangeListener(
@@ -477,8 +523,7 @@ public class CellBroadcastSettings extends Activity {
          * Dynamically update each preference's visibility based on configuration.
          */
         private void updatePreferenceVisibility() {
-            Resources res = CellBroadcastSettings.getResources(getContext(),
-                    SubscriptionManager.DEFAULT_SUBSCRIPTION_ID);
+            Resources res = CellBroadcastSettings.getResourcesForDefaultSubId(getContext());
 
             CellBroadcastChannelManager channelManager = new CellBroadcastChannelManager(
                     getContext(), SubscriptionManager.DEFAULT_SUBSCRIPTION_ID);
@@ -522,6 +567,20 @@ public class CellBroadcastSettings extends Activity {
                 mTestCheckBox.setVisible(isTestAlertsToggleVisible(getContext()));
             }
 
+            if (mExerciseTestCheckBox != null) {
+                boolean visible = false;
+                if (res.getBoolean(R.bool.show_separate_exercise_settings)) {
+                    if (res.getBoolean(R.bool.show_exercise_settings)
+                            || CellBroadcastReceiver.isTestingMode(getContext())) {
+                        if (!channelManager.getCellBroadcastChannelRanges(
+                                R.array.exercise_alert_range_strings).isEmpty()) {
+                            visible = true;
+                        }
+                    }
+                }
+                mExerciseTestCheckBox.setVisible(visible);
+            }
+
             if (mEmergencyAlertsCheckBox != null) {
                 mEmergencyAlertsCheckBox.setVisible(!channelManager.getCellBroadcastChannelRanges(
                         R.array.emergency_alerts_channels_range_strings).isEmpty());
@@ -561,11 +620,16 @@ public class CellBroadcastSettings extends Activity {
                 mAlertsHeader.setVisible(
                         !getContext().getString(R.string.alerts_header_summary).isEmpty());
             }
+
+            if (mSpeechCheckBox != null) {
+                mSpeechCheckBox.setVisible(res.getBoolean(R.bool.show_alert_speech_setting)
+                        || getActivity().getPackageManager()
+                        .hasSystemFeature(PackageManager.FEATURE_WATCH));
+            }
         }
 
         private void initReminderIntervalList() {
-            Resources res = CellBroadcastSettings.getResources(
-                    getContext(), SubscriptionManager.DEFAULT_SUBSCRIPTION_ID);
+            Resources res = CellBroadcastSettings.getResourcesForDefaultSubId(getContext());
 
             String[] activeValues =
                     res.getStringArray(R.array.alert_reminder_interval_active_values);
@@ -635,6 +699,10 @@ public class CellBroadcastSettings extends Activity {
                 mTestCheckBox.setEnabled(alertsEnabled);
                 mTestCheckBox.setChecked(alertsEnabled);
             }
+            if (mExerciseTestCheckBox != null) {
+                mExerciseTestCheckBox.setEnabled(alertsEnabled);
+                mExerciseTestCheckBox.setChecked(alertsEnabled);
+            }
         }
 
         @Override
@@ -654,12 +722,13 @@ public class CellBroadcastSettings extends Activity {
     public static boolean isTestAlertsToggleVisible(Context context) {
         CellBroadcastChannelManager channelManager = new CellBroadcastChannelManager(context,
                 SubscriptionManager.DEFAULT_SUBSCRIPTION_ID);
-        Resources res = CellBroadcastSettings.getResources(context,
-                SubscriptionManager.DEFAULT_SUBSCRIPTION_ID);
+        Resources res = CellBroadcastSettings.getResourcesForDefaultSubId(context);
         boolean isTestAlertsAvailable = !channelManager.getCellBroadcastChannelRanges(
                 R.array.required_monthly_test_range_strings).isEmpty()
-                || !channelManager.getCellBroadcastChannelRanges(
+                || (!channelManager.getCellBroadcastChannelRanges(
                 R.array.exercise_alert_range_strings).isEmpty()
+                /** exercise toggle is controlled under the main test toggle */
+                && (!res.getBoolean(R.bool.show_separate_exercise_settings)))
                 || !channelManager.getCellBroadcastChannelRanges(
                 R.array.operator_defined_alert_range_strings).isEmpty()
                 || !channelManager.getCellBroadcastChannelRanges(
@@ -729,5 +798,15 @@ public class CellBroadcastSettings extends Activity {
         sResourcesCache.put(subId, res);
 
         return res;
+    }
+
+    /**
+     * Get the resources using the default subscription ID.
+     * @param context Context
+     * @return the Resources for the default subscription ID, or if there is no default subscription
+     * from SubscriptionManager, the resources for the latest loaded SIM.
+     */
+    public static @NonNull Resources getResourcesForDefaultSubId(@NonNull Context context) {
+        return getResources(context, SubscriptionManager.getDefaultSubscriptionId());
     }
 }

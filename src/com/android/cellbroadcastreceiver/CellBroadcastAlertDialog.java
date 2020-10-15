@@ -39,7 +39,6 @@ import android.preference.PreferenceManager;
 import android.provider.Telephony;
 import android.telephony.SmsCbCmasInfo;
 import android.telephony.SmsCbMessage;
-import android.telephony.SubscriptionManager;
 import android.text.Spannable;
 import android.text.SpannableString;
 import android.text.TextUtils;
@@ -250,11 +249,24 @@ public class CellBroadcastAlertDialog extends Activity {
         ScreenOffHandler() {}
 
         /** Add screen on window flags and queue a delayed message to remove them later. */
-        void startScreenOnTimer() {
+        void startScreenOnTimer(@NonNull SmsCbMessage message) {
+            // if screenOnDuration in milliseconds. if set to 0, do not turn screen on.
+            int screenOnDuration = KEEP_SCREEN_ON_DURATION_MSEC;
+            CellBroadcastChannelManager channelManager = new CellBroadcastChannelManager(
+                    getApplicationContext(), message.getSubscriptionId());
+            CellBroadcastChannelRange range = channelManager
+                    .getCellBroadcastChannelRangeFromMessage(message);
+            if (range!= null) {
+                screenOnDuration = range.mScreenOnDuration;
+            }
+            if (screenOnDuration == 0) {
+                Log.d(TAG, "screenOnDuration set to 0, do not turn screen on");
+                return;
+            }
             addWindowFlags();
             int msgWhat = mCount.incrementAndGet();
             removeMessages(msgWhat - 1);    // Remove previous message, if any.
-            sendEmptyMessageDelayed(msgWhat, KEEP_SCREEN_ON_DURATION_MSEC);
+            sendEmptyMessageDelayed(msgWhat, screenOnDuration);
             Log.d(TAG, "added FLAG_KEEP_SCREEN_ON, queued screen off message id " + msgWhat);
         }
 
@@ -270,10 +282,13 @@ public class CellBroadcastAlertDialog extends Activity {
                     | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         }
 
-        /** Clear the screen on window flags. */
+        /**
+         * Clear the keep screen on window flags in order for powersaving but keep TURN_ON_SCREEN_ON
+         * to make sure next wake up still turn screen on without unintended onStop triggered at
+         * the beginning.
+         */
         private void clearWindowFlags() {
-            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
-                    | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         }
 
         @Override
@@ -303,8 +318,7 @@ public class CellBroadcastAlertDialog extends Activity {
                 | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
 
         // Disable home button when alert dialog is showing if mute_by_physical_button is false.
-        if (!CellBroadcastSettings.getResources(getApplicationContext(),
-                SubscriptionManager.DEFAULT_SUBSCRIPTION_ID)
+        if (!CellBroadcastSettings.getResourcesForDefaultSubId(getApplicationContext())
                 .getBoolean(R.bool.mute_by_physical_button)) {
             final View decorView = win.getDecorView();
             decorView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_HIDE_NAVIGATION);
@@ -353,7 +367,7 @@ public class CellBroadcastAlertDialog extends Activity {
             if (channelManager.isEmergencyMessage(message)) {
                 Log.d(TAG, "onCreate setting screen on timer for emergency alert for sub "
                         + message.getSubscriptionId());
-                mScreenOffHandler.startScreenOnTimer();
+                mScreenOffHandler.startScreenOnTimer(message);
             }
 
             updateAlertText(message);
@@ -390,7 +404,10 @@ public class CellBroadcastAlertDialog extends Activity {
             int subId = message.getSubscriptionId();
             CellBroadcastChannelManager channelManager = new CellBroadcastChannelManager(this,
                     subId);
-            if (channelManager.isEmergencyMessage(message)) {
+            CellBroadcastChannelRange range = channelManager
+                    .getCellBroadcastChannelRangeFromMessage(message);
+            if (channelManager.isEmergencyMessage(message)
+                    && (range!= null && range.mDisplayIcon)) {
                 mAnimationHandler.startIconAnimation(subId);
             }
         }
@@ -582,6 +599,9 @@ public class CellBroadcastAlertDialog extends Activity {
                 if (res.getBoolean(R.bool.show_date_time_with_year_title)) {
                     flags |= DateUtils.FORMAT_SHOW_YEAR;
                 }
+                if (res.getBoolean(R.bool.show_date_in_numeric_format)) {
+                    flags |= DateUtils.FORMAT_NUMERIC_DATE;
+                }
                 title += "\n" + DateUtils.formatDateTime(context, message.getReceivedTime(), flags);
             }
 
@@ -668,8 +688,7 @@ public class CellBroadcastAlertDialog extends Activity {
                 mMessageList = newMessageList;
             } else {
                 mMessageList.addAll(newMessageList);
-                if (CellBroadcastSettings.getResources(getApplicationContext(),
-                        SubscriptionManager.DEFAULT_SUBSCRIPTION_ID)
+                if (CellBroadcastSettings.getResourcesForDefaultSubId(getApplicationContext())
                         .getBoolean(R.bool.show_cmas_messages_in_priority_order)) {
                     // Sort message list to show messages in a different order than received by
                     // prioritizing them. Presidential Alert only has top priority.
@@ -707,7 +726,7 @@ public class CellBroadcastAlertDialog extends Activity {
                 if (channelManager.isEmergencyMessage(message)) {
                     Log.d(TAG, "onCreate setting screen on timer for emergency alert for sub "
                             + message.getSubscriptionId());
-                    mScreenOffHandler.startScreenOnTimer();
+                    mScreenOffHandler.startScreenOnTimer(message);
                 }
             }
 
@@ -775,7 +794,8 @@ public class CellBroadcastAlertDialog extends Activity {
         CellBroadcastChannelRange range = channelManager
                 .getCellBroadcastChannelRangeFromMessage(lastMessage);
 
-        if (range!= null && !range.mAlwaysOn) {
+        if (!neverShowOptOutDialog(lastMessage.getSubscriptionId()) && range != null
+                && !range.mAlwaysOn) {
             mShowOptOutDialog = true;
         }
 
@@ -784,7 +804,8 @@ public class CellBroadcastAlertDialog extends Activity {
         if (nextMessage != null) {
             updateAlertText(nextMessage);
             int subId = nextMessage.getSubscriptionId();
-            if (channelManager.isEmergencyMessage(nextMessage)) {
+            if (channelManager.isEmergencyMessage(nextMessage)
+                    && (range!= null && range.mDisplayIcon)) {
                 mAnimationHandler.startIconAnimation(subId);
             } else {
                 mAnimationHandler.stopIconAnimation();
@@ -822,8 +843,8 @@ public class CellBroadcastAlertDialog extends Activity {
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         Log.d(TAG, "onKeyDown: " + event);
         SmsCbMessage message = getLatestMessage();
-        if (CellBroadcastSettings.getResources(getApplicationContext(), message.getSubscriptionId())
-                .getBoolean(R.bool.mute_by_physical_button)) {
+        if (message != null && CellBroadcastSettings.getResources(getApplicationContext(),
+                message.getSubscriptionId()).getBoolean(R.bool.mute_by_physical_button)) {
             switch (event.getKeyCode()) {
                 // Volume keys and camera keys mute the alert sound/vibration (except ETWS).
                 case KeyEvent.KEYCODE_VOLUME_UP:
@@ -865,6 +886,14 @@ public class CellBroadcastAlertDialog extends Activity {
                     .apply();
             mOptOutDialog.dismiss();
         }
+    }
+
+    /**
+     * @return true if the device is configured to never show the opt out dialog for the mcc/mnc
+     */
+    private boolean neverShowOptOutDialog(int subId) {
+        return CellBroadcastSettings.getResources(getApplicationContext(), subId)
+                .getBoolean(R.bool.disable_opt_out_dialog);
     }
 
     /**

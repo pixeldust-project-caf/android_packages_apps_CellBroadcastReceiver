@@ -100,6 +100,10 @@ public class CellBroadcastChannelManager {
         private static final String KEY_TESTING_MODE_ONLY = "testing_mode";
         /** Define the channels which not allow opt-out. */
         private static final String KEY_ALWAYS_ON = "always_on";
+        /** Define the duration of screen on in milliseconds. */
+        private static final String KEY_SCREEN_ON_DURATION = "screen_on_duration";
+        /** Define whether to display warning icon in the alert dialog. */
+        private static final String KEY_DISPLAY_ICON = "display_icon";
 
         /**
          * Defines whether the channel needs language filter or not. True indicates that the alert
@@ -135,6 +139,10 @@ public class CellBroadcastChannelManager {
         public boolean mWriteToSmsInbox = true;
         // only set to true for channels not allow opt-out. e.g, presidential alert.
         public boolean mAlwaysOn = false;
+        // de default screen duration is 1min;
+        public int mScreenOnDuration = 60000;
+        // whether to display warning icon in the pop-up dialog;
+        public boolean mDisplayIcon = true;
 
         public CellBroadcastChannelRange(Context context, int subId, String channelRange) {
 
@@ -149,6 +157,7 @@ public class CellBroadcastChannelManager {
             // by default all received messages should be displayed.
             mDisplay = true;
             mTestMode = false;
+            boolean hasVibrationPattern = false;
 
             int colonIndex = channelRange.indexOf(':');
             if (colonIndex != -1) {
@@ -192,6 +201,7 @@ public class CellBroadcastChannelManager {
                                     for (int i = 0; i < vibration.length; i++) {
                                         mVibrationPattern[i] = Integer.parseInt(vibration[i]);
                                     }
+                                    hasVibrationPattern = true;
                                 }
                                 break;
                             case KEY_FILTER_LANGUAGE:
@@ -227,10 +237,24 @@ public class CellBroadcastChannelManager {
                                     mAlwaysOn = true;
                                 }
                                 break;
+                            case KEY_SCREEN_ON_DURATION:
+                                mScreenOnDuration = Integer.parseInt(value);
+                                break;
+                            case KEY_DISPLAY_ICON:
+                                if (value.equalsIgnoreCase("false")) {
+                                    mDisplayIcon = false;
+                                }
+                                break;
                         }
                     }
                 }
                 channelRange = channelRange.substring(0, colonIndex).trim();
+            }
+
+            // If alert type is info, override vibration pattern
+            if (!hasVibrationPattern && mAlertType.equals(AlertType.INFO)) {
+                mVibrationPattern = CellBroadcastSettings.getResources(context, subId)
+                        .getIntArray(R.array.default_notification_vibration_pattern);
             }
 
             // Parse the channel range
@@ -252,7 +276,8 @@ public class CellBroadcastChannelManager {
                     + Arrays.toString(mVibrationPattern) + ",alertDuration=" + mAlertDuration
                     + ",filter_language=" + mFilterLanguage + ",override_dnd=" + mOverrideDnd
                     + ",display=" + mDisplay + ",testMode=" + mTestMode + ",mAlwaysOn="
-                    + mAlwaysOn +"]";
+                    + mAlwaysOn + ",ScreenOnDuration=" + mScreenOnDuration + ", displayIcon="
+                    + mDisplayIcon + "]";
         }
     }
 
@@ -278,15 +303,15 @@ public class CellBroadcastChannelManager {
         ArrayList<CellBroadcastChannelRange> result = new ArrayList<>();
         String[] ranges =
                 CellBroadcastSettings.getResources(mContext, mSubId).getStringArray(key);
-
-        for (String range : ranges) {
-            try {
-                result.add(new CellBroadcastChannelRange(mContext, mSubId, range));
-            } catch (Exception e) {
-                loge("Failed to parse \"" + range + "\". e=" + e);
+        if (ranges != null) {
+            for (String range : ranges) {
+                try {
+                    result.add(new CellBroadcastChannelRange(mContext, mSubId, range));
+                } catch (Exception e) {
+                    loge("Failed to parse \"" + range + "\". e=" + e);
+                }
             }
         }
-
         return result;
     }
 
@@ -444,10 +469,6 @@ public class CellBroadcastChannelManager {
         // emergency property from the message itself, which is checking if the channel is between
         // MESSAGE_ID_PWS_FIRST_IDENTIFIER (4352) and MESSAGE_ID_PWS_LAST_IDENTIFIER (6399).
         return message.isEmergencyMessage();
-    }
-
-    private static void log(String msg) {
-        Log.d(TAG, msg);
     }
 
     private static void loge(String msg) {

@@ -19,7 +19,6 @@ package com.android.cellbroadcastreceiver;
 import static android.telephony.SmsCbMessage.MESSAGE_FORMAT_3GPP;
 import static android.telephony.SmsCbMessage.MESSAGE_FORMAT_3GPP2;
 
-import android.annotation.NonNull;
 import android.app.ActivityManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -40,7 +39,6 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.SystemProperties;
 import android.os.UserHandle;
-import android.os.UserManager;
 import android.preference.PreferenceManager;
 import android.provider.Telephony;
 import android.telephony.CarrierConfigManager;
@@ -48,7 +46,6 @@ import android.service.notification.StatusBarNotification;
 import android.telephony.PhoneStateListener;
 import android.telephony.SmsCbEtwsInfo;
 import android.telephony.SmsCbMessage;
-import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
@@ -182,7 +179,8 @@ public class CellBroadcastAlertService extends Service {
      * @param message Cell broadcast message
      * @return True if the message should be displayed to the user
      */
-    private boolean shouldDisplayMessage(SmsCbMessage message) {
+    @VisibleForTesting
+    public boolean shouldDisplayMessage(SmsCbMessage message) {
         TelephonyManager tm = ((TelephonyManager) mContext.getSystemService(
                 Context.TELEPHONY_SERVICE)).createForSubscriptionId(message.getSubscriptionId());
         if (tm.getEmergencyCallbackMode() && CellBroadcastSettings.getResources(
@@ -214,8 +212,8 @@ public class CellBroadcastAlertService extends Service {
         String messageLanguage = message.getLanguageCode();
         if (range != null && range.mFilterLanguage) {
             // language filtering based on CBR second language settings
-            final String secondLanguageCode =  CellBroadcastSettings.getResources(mContext,
-                    SubscriptionManager.DEFAULT_SUBSCRIPTION_ID)
+            final String secondLanguageCode = CellBroadcastSettings.getResources(mContext,
+                    message.getSubscriptionId())
                     .getString(R.string.emergency_alert_second_language_code);
             if (!secondLanguageCode.isEmpty()) {
                 SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
@@ -332,7 +330,7 @@ public class CellBroadcastAlertService extends Service {
                             .getBoolean(R.bool.enable_write_alerts_to_sms_inbox)) {
                         if (CellBroadcastReceiver.isTestingMode(getApplicationContext())
                                 || (range != null && range.mWriteToSmsInbox)) {
-                            writeMessageToSmsInbox(message);
+                            provider.writeMessageToSmsInbox(message, mContext);
                         }
                     }
                     return ret;
@@ -399,6 +397,7 @@ public class CellBroadcastAlertService extends Service {
                 message.getSubscriptionId());
         CellBroadcastChannelRange chanelrange = channelManager
                 .getCellBroadcastChannelRangeFromMessage(message);
+        Resources res = CellBroadcastSettings.getResources(mContext, message.getSubscriptionId());
         if (chanelrange != null && chanelrange.mAlwaysOn) {
             Log.d(TAG, "channel is enabled due to always-on, ignoring preference check");
             return true;
@@ -455,6 +454,12 @@ public class CellBroadcastAlertService extends Service {
                             .getBoolean(CellBroadcastSettings.KEY_ENABLE_TEST_ALERTS,
                                     false);
                 }
+                if (range.mAlertType == AlertType.AREA) {
+                    return emergencyAlertEnabled && PreferenceManager
+                            .getDefaultSharedPreferences(this)
+                            .getBoolean(CellBroadcastSettings.KEY_ENABLE_AREA_UPDATE_INFO_ALERTS,
+                                    false);
+                }
 
                 return emergencyAlertEnabled;
             }
@@ -489,6 +494,13 @@ public class CellBroadcastAlertService extends Service {
             return emergencyAlertEnabled
                     && PreferenceManager.getDefaultSharedPreferences(this)
                             .getBoolean(CellBroadcastSettings.KEY_ENABLE_CMAS_AMBER_ALERTS, true);
+        }
+
+        if (channelManager.checkCellBroadcastChannelRange(
+                channel, R.array.exercise_alert_range_strings) &&
+                res.getBoolean(R.bool.show_separate_exercise_settings)) {
+            return emergencyAlertEnabled && PreferenceManager.getDefaultSharedPreferences(this)
+                    .getBoolean(CellBroadcastSettings.KEY_ENABLE_EXERCISE_ALERTS, false);
         }
 
         if (channelManager.checkCellBroadcastChannelRange(channel,
@@ -584,21 +596,29 @@ public class CellBroadcastAlertService extends Service {
                         ? range.mVibrationPattern
                         : CellBroadcastSettings.getResources(mContext, message.getSubscriptionId())
                         .getIntArray(R.array.default_vibration_pattern));
-
-        if (prefs.getBoolean(CellBroadcastSettings.KEY_OVERRIDE_DND, false)
-                || (range != null && range.mOverrideDnd)) {
+        // read key_override_dnd only when the toggle is visible.
+        // range.mOverrideDnd is per channel configuration. override_dnd is the main config
+        // applied for all channels.
+        Resources res = CellBroadcastSettings.getResources(mContext, message.getSubscriptionId());
+        if ((res.getBoolean(R.bool.show_override_dnd_settings)
+                && prefs.getBoolean(CellBroadcastSettings.KEY_OVERRIDE_DND, false))
+                || (range != null && range.mOverrideDnd) || res.getBoolean(R.bool.override_dnd)) {
             audioIntent.putExtra(CellBroadcastAlertAudio.ALERT_AUDIO_OVERRIDE_DND_EXTRA, true);
         }
 
         String messageBody = message.getMessageBody();
 
-        audioIntent.putExtra(CellBroadcastAlertAudio.ALERT_AUDIO_MESSAGE_BODY, messageBody);
+        if (!CellBroadcastSettings.getResourcesForDefaultSubId(mContext)
+                .getBoolean(R.bool.show_alert_speech_setting)
+                || prefs.getBoolean(CellBroadcastSettings.KEY_ENABLE_ALERT_SPEECH, true)) {
+            audioIntent.putExtra(CellBroadcastAlertAudio.ALERT_AUDIO_MESSAGE_BODY, messageBody);
 
-        String language = message.getLanguageCode();
+            String language = message.getLanguageCode();
 
-        Log.d(TAG, "Message language = " + language);
-        audioIntent.putExtra(CellBroadcastAlertAudio.ALERT_AUDIO_MESSAGE_LANGUAGE,
-                language);
+            Log.d(TAG, "Message language = " + language);
+            audioIntent.putExtra(CellBroadcastAlertAudio.ALERT_AUDIO_MESSAGE_LANGUAGE,
+                    language);
+        }
 
         audioIntent.putExtra(CellBroadcastAlertAudio.ALERT_AUDIO_SUB_INDEX,
                 message.getSubscriptionId());
@@ -836,49 +856,6 @@ public class CellBroadcastAlertService extends Service {
                 }
             }
             CellBroadcastReceiverApp.clearNewMessageList();
-        }
-    }
-
-    /**
-     * Write displayed cellbroadcast messages to sms inbox
-     *
-     * @param message The cell broadcast message.
-     */
-    private void writeMessageToSmsInbox(@NonNull SmsCbMessage message) {
-        UserManager userManager = mContext.getSystemService(UserManager.class);
-        if (!userManager.isSystemUser()) {
-            // SMS database is single-user mode, discard non-system users to avoid inserting twice.
-            Log.d(TAG, "ignoring writeMessageToSmsInbox due to non-system user");
-            return;
-        }
-
-        // composing SMS
-        ContentValues cv = new ContentValues();
-        cv.put(Telephony.Sms.Inbox.BODY, message.getMessageBody());
-        cv.put(Telephony.Sms.Inbox.DATE, message.getReceivedTime());
-        cv.put(Telephony.Sms.Inbox.SUBSCRIPTION_ID, message.getSubscriptionId());
-        cv.put(Telephony.Sms.Inbox.SUBJECT, mContext.getString(
-                CellBroadcastResources.getDialogTitleResource(mContext, message)));
-        cv.put(Telephony.Sms.Inbox.ADDRESS, mContext.getString(
-                CellBroadcastResources.getSmsSenderAddressResource(mContext, message)));
-        cv.put(Telephony.Sms.Inbox.THREAD_ID, Telephony.Threads.getOrCreateThreadId(mContext,
-                mContext.getString(CellBroadcastResources
-                        .getSmsSenderAddressResource(mContext, message))));
-        if (CellBroadcastSettings.getResources(mContext, message.getSubscriptionId())
-                .getBoolean(R.bool.always_mark_sms_read)) {
-            // Always mark SMS message READ. End users expect when they read new CBS messages,
-            // the unread alert count in the notification should be decreased, as they thought it
-            // was coming from SMS. Now we are marking those SMS as read (SMS now serve as a message
-            // history purpose) and that should give clear messages to end-users that alerts are not
-            // from the SMS app but CellBroadcast and they should tap the notification to read alert
-            // in order to see decreased unread message count.
-            cv.put(Telephony.Sms.Inbox.READ, 1);
-        }
-        Uri uri = mContext.getContentResolver().insert(Telephony.Sms.Inbox.CONTENT_URI, cv);
-        if (uri == null) {
-            Log.e(TAG, "writeMessageToSmsInbox: failed");
-        } else {
-            Log.d(TAG, "writeMessageToSmsInbox: succeed uri = " + uri);
         }
     }
 }

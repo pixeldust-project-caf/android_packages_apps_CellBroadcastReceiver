@@ -25,6 +25,9 @@ import static org.mockito.Mockito.doReturn;
 
 import android.content.Intent;
 import android.provider.Telephony;
+import android.telephony.AccessNetworkConstants;
+import android.telephony.NetworkRegistrationInfo;
+import android.telephony.ServiceState;
 import android.telephony.SmsCbCmasInfo;
 import android.telephony.SmsCbEtwsInfo;
 import android.telephony.SmsCbLocation;
@@ -37,11 +40,14 @@ import com.android.internal.telephony.gsm.SmsCbConstants;
 
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mock;
 
 import java.util.ArrayList;
 
 public class CellBroadcastAlertServiceTest extends
         CellBroadcastServiceTestCase<CellBroadcastAlertService> {
+    @Mock
+    ServiceState mockSS;
 
     public CellBroadcastAlertServiceTest() {
         super(CellBroadcastAlertService.class);
@@ -150,7 +156,7 @@ public class CellBroadcastAlertServiceTest extends
     @InstrumentationTest
     // This test has a module dependency, so it is disabled for OEM testing because it is not a true
     // unit test
-    public void testHandleCellBroadcastIntent() throws Exception {
+    public void testHandleCellBroadcastIntent() {
         doReturn(new String[]{"0x1112:rat=gsm, emergency=true"})
                 .when(mResources).getStringArray(anyInt());
         enablePreference(CellBroadcastSettings.KEY_ENABLE_ALERTS_MASTER_TOGGLE);
@@ -165,11 +171,112 @@ public class CellBroadcastAlertServiceTest extends
         compareCellBroadCastMessage(cbm, cbmTest);
     }
 
+    // Test testHandleCellBroadcastIntentDomesticRoaming method
+    @InstrumentationTest
+    // This test has a module dependency, so it is disabled for OEM testing because it is not a true
+    // unit test
+    public void testHandleCellBroadcastIntentDomesticRoaming() throws Exception {
+        doReturn(mockSS).when(mMockedTelephonyManager).getServiceState();
+        NetworkRegistrationInfo mockNeRegInfo = new NetworkRegistrationInfo(
+                NetworkRegistrationInfo.DOMAIN_CS, AccessNetworkConstants.TRANSPORT_TYPE_WWAN,
+                NetworkRegistrationInfo.REGISTRATION_STATE_ROAMING, 0, 0, false,
+                null, null, "", true, 0, 0, 0);
+        mockNeRegInfo.setRoamingType(ServiceState.ROAMING_TYPE_DOMESTIC);
+        doReturn(mockNeRegInfo).when(mockSS).getNetworkRegistrationInfo(anyInt(), anyInt());
+        doReturn(new String[]{"0x1112:rat=gsm, emergency=true, scope=domestic"})
+                .when(mResources).getStringArray(anyInt());
+
+        enablePreference(CellBroadcastSettings.KEY_ENABLE_ALERTS_MASTER_TOGGLE);
+        sendMessage(987654321);
+        waitForServiceIntent();
+
+        assertEquals(SHOW_NEW_ALERT_ACTION, mServiceIntentToVerify.getAction());
+
+        SmsCbMessage cbmTest = (SmsCbMessage) mServiceIntentToVerify.getExtras().get("message");
+        SmsCbMessage cbm = createMessage(987654321);
+
+        compareCellBroadCastMessage(cbm, cbmTest);
+    }
+
+    // Test testHandleCellBroadcastIntentInternationalRoaming method
+    @InstrumentationTest
+    // This test has a module dependency, so it is disabled for OEM testing because it is not a true
+    // unit test
+    public void testHandleCellBroadcastIntentInternationalRoaming() throws Exception {
+        doReturn(mockSS).when(mMockedTelephonyManager).getServiceState();
+        NetworkRegistrationInfo mockNeRegInfo = new NetworkRegistrationInfo(
+                NetworkRegistrationInfo.DOMAIN_CS, AccessNetworkConstants.TRANSPORT_TYPE_WWAN,
+                NetworkRegistrationInfo.REGISTRATION_STATE_ROAMING, 0, 0, false,
+                null, null, "", true, 0, 0, 0);
+        mockNeRegInfo.setRoamingType(ServiceState.ROAMING_TYPE_INTERNATIONAL);
+        doReturn(mockNeRegInfo).when(mockSS).getNetworkRegistrationInfo(anyInt(), anyInt());
+        doReturn(new String[]{"0x1112:rat=gsm, emergency=true, scope=international"})
+                .when(mResources).getStringArray(anyInt());
+
+        enablePreference(CellBroadcastSettings.KEY_ENABLE_ALERTS_MASTER_TOGGLE);
+        sendMessage(987654321);
+        waitForServiceIntent();
+
+        assertEquals(SHOW_NEW_ALERT_ACTION, mServiceIntentToVerify.getAction());
+
+        SmsCbMessage cbmTest = (SmsCbMessage) mServiceIntentToVerify.getExtras().get("message");
+        SmsCbMessage cbm = createMessage(987654321);
+
+        compareCellBroadCastMessage(cbm, cbmTest);
+    }
+
+    // Test testHandleCellBroadcastIntentNonRoaming method
+    @InstrumentationTest
+    // This test has a module dependency, so it is disabled for OEM testing because it is not a true
+    // unit test
+    public void testHandleCellBroadcastIntentNonRoaming() throws Exception {
+        doReturn(mockSS).when(mMockedTelephonyManager).getServiceState();
+        NetworkRegistrationInfo mockNeRegInfo = new NetworkRegistrationInfo(
+                NetworkRegistrationInfo.DOMAIN_CS, AccessNetworkConstants.TRANSPORT_TYPE_WWAN,
+                NetworkRegistrationInfo.REGISTRATION_STATE_HOME, 0, 0, false,
+                null, null, "", true, 0, 0, 0);
+        mockNeRegInfo.setRoamingType(ServiceState.ROAMING_TYPE_NOT_ROAMING);
+        doReturn(mockNeRegInfo).when(mockSS).getNetworkRegistrationInfo(anyInt(), anyInt());
+        doReturn(new String[]{"0x1112:rat=gsm, emergency=true, scope=international"})
+                .when(mResources).getStringArray(anyInt());
+
+        enablePreference(CellBroadcastSettings.KEY_ENABLE_ALERTS_MASTER_TOGGLE);
+        sendMessage(987654321);
+        waitForServiceIntent();
+        assertEquals(SHOW_NEW_ALERT_ACTION, mServiceIntentToVerify.getAction());
+
+        SmsCbMessage cbmTest = (SmsCbMessage) mServiceIntentToVerify.getExtras().get("message");
+        SmsCbMessage cbm = createMessage(987654321);
+
+        compareCellBroadCastMessage(cbm, cbmTest);
+    }
+
+    // Test testHandleCellBroadcastIntentNonMatchedScope method
+    @InstrumentationTest
+    // This test has a module dependency, so it is disabled for OEM testing because it is not a true
+    // unit test
+    public void testHandleCellBroadcastIntentNonMatchedScope() throws Exception {
+        doReturn(mockSS).when(mMockedTelephonyManager).getServiceState();
+        NetworkRegistrationInfo mockNeRegInfo = new NetworkRegistrationInfo(
+                NetworkRegistrationInfo.DOMAIN_CS, AccessNetworkConstants.TRANSPORT_TYPE_WWAN,
+                NetworkRegistrationInfo.REGISTRATION_STATE_HOME, 0, 0, false,
+                null, null, "", true, 0, 0, 0);
+        mockNeRegInfo.setRoamingType(ServiceState.ROAMING_TYPE_DOMESTIC);
+        doReturn(mockNeRegInfo).when(mockSS).getNetworkRegistrationInfo(anyInt(), anyInt());
+        doReturn(new String[]{"0x1112:rat=gsm, emergency=true, scope=international"})
+                .when(mResources).getStringArray(anyInt());
+
+        enablePreference(CellBroadcastSettings.KEY_ENABLE_ALERTS_MASTER_TOGGLE);
+        sendMessage(987654321);
+        waitForServiceIntent();
+        assertNull(mServiceIntentToVerify);
+    }
+
     // Test showNewAlert method
     @InstrumentationTest
     // This test has a module dependency, so it is disabled for OEM testing because it is not a true
     // unit test
-    public void testShowNewAlert() throws Exception {
+    public void testShowNewAlert() {
         Intent intent = new Intent(mContext, CellBroadcastAlertService.class);
         intent.setAction(SHOW_NEW_ALERT_ACTION);
         SmsCbMessage message = createMessage(34788612);
@@ -244,5 +351,29 @@ public class CellBroadcastAlertServiceTest extends
                 SmsCbConstants.MESSAGE_ID_CMAS_ALERT_CHILD_ABDUCTION_EMERGENCY, language);
 
         compareCellBroadCastMessage(cbm, cbmTest);
+    }
+
+    public void testShouldDisplayMessage() {
+        sendMessage(1);
+        waitForServiceIntent();
+
+        CellBroadcastAlertService cellBroadcastAlertService =
+                (CellBroadcastAlertService) getService();
+
+        // shouldDisplayMessage should return true for ETWS message
+        SmsCbEtwsInfo etwsInfo = new SmsCbEtwsInfo(SmsCbEtwsInfo.ETWS_WARNING_TYPE_EARTHQUAKE, true,
+                true, true, null);
+        SmsCbMessage message = new SmsCbMessage(1, 2, 3, new SmsCbLocation(),
+                SmsCbEtwsInfo.ETWS_WARNING_TYPE_EARTHQUAKE,
+                "language", "body",
+                SmsCbMessage.MESSAGE_PRIORITY_EMERGENCY, etwsInfo,
+                null, 0, 1);
+
+        enablePreference(CellBroadcastSettings.KEY_ENABLE_ALERTS_MASTER_TOGGLE);
+
+        assertNotNull("Message should have non-null ETWS info", message.getEtwsWarningInfo());
+        assertTrue("Message should be ETWS message", message.isEtwsMessage());
+        assertTrue("Should display ETWS message",
+                cellBroadcastAlertService.shouldDisplayMessage(message));
     }
 }
