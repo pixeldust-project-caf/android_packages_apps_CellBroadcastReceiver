@@ -592,7 +592,20 @@ public class CellBroadcastAlertDialog extends Activity {
         int titleId = CellBroadcastResources.getDialogTitleResource(context, message);
 
         Resources res = CellBroadcastSettings.getResources(context, message.getSubscriptionId());
-        String title = overrideTranslation(titleId, res, message.getLanguageCode());
+        // This is a temp workaround to bypass carrier TA where the testcase does not set the
+        // language code correctly. TODO: remove this when the testcase get updated.
+        CellBroadcastChannelManager channelManager = new CellBroadcastChannelManager(
+                this, message.getSubscriptionId());
+        CellBroadcastChannelRange range = channelManager
+                .getCellBroadcastChannelRangeFromMessage(message);
+        String languageCode;
+        if (range != null && !TextUtils.isEmpty(range.mLanguageCode)) {
+            languageCode = range.mLanguageCode;
+        } else {
+            languageCode = message.getLanguageCode();
+        }
+
+        String title = overrideTranslation(titleId, res, languageCode);
         TextView titleTextView = findViewById(R.id.alertTitle);
 
         if (titleTextView != null) {
@@ -779,7 +792,9 @@ public class CellBroadcastAlertDialog extends Activity {
         // Cancel any pending alert reminder
         CellBroadcastAlertReminder.cancelAlertReminder();
         // Remove the all current showing alert message from the list.
-        mMessageList.clear();
+        if (mMessageList != null) {
+            mMessageList.clear();
+        }
         // clear notifications.
         clearNotification(intent);
         // Remove pending screen-off messages (animation messages are removed in onPause()).
