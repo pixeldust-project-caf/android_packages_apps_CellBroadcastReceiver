@@ -58,6 +58,7 @@
     <string name="notification_channel_broadcast_messages" msgid="880704362482824524">"Broadcast შეტყობინებები"</string>
     <string name="notification_channel_emergency_alerts" msgid="5008287980979183617">"საგანგებო გაფრთხილებები"</string>
     <string name="notification_channel_broadcast_messages_in_voicecall" msgid="3291001780110813190">"საგანგებო გაფრთხილებები ხმოვანი ზარის დროს"</string>
+    <string name="notification_channel_settings_updates" msgid="6779759372516475085">"WEA პარამეტრების ავტომატური ცვლილებები SIM-ის მიხედვით"</string>
     <string name="enable_alerts_master_toggle_title" msgid="1457904343636699446">"გაფრთხილებების დაშვება"</string>
     <string name="enable_alerts_master_toggle_summary" msgid="5583168548073938617">"უსადენო საგანგებო გაფრთხილებების მიღება"</string>
     <string name="alert_reminder_interval_title" msgid="3283595202268218149">"გაფრთხილება"</string>
@@ -86,8 +87,7 @@
     <string name="enable_cmas_test_alerts_summary" msgid="2083089933271720217">"ოპერატორის ტესტებისა და ყოველთვიური ტესტების მიღება უსაფრთხოების გამაფრთხილებელი სისტემისგან"</string>
     <!-- no translation found for enable_exercise_test_alerts_title (6030780598569873865) -->
     <skip />
-    <!-- no translation found for enable_exercise_test_alerts_summary (4276766794979567304) -->
-    <skip />
+    <string name="enable_exercise_test_alerts_summary" msgid="4276766794979567304">"საგანგებო გაფრთხილების მიღება: სავარჯიშო/საწვრთნელი შეტყობინება"</string>
     <string name="enable_alert_vibrate_title" msgid="5421032189422312508">"ვიბრაცია"</string>
     <string name="override_dnd_title" msgid="5120805993144214421">"ყოველთვის ხმის სრული სიმძლავრით გაფრთხილება"</string>
     <string name="override_dnd_summary" msgid="9026675822792800258">"„არ შემაწუხოთ“ რეჟიმის და ხმის სხვა პარამეტრების იგნორირება"</string>
@@ -160,4 +160,6 @@
     <string name="maximum_waiting_time" msgid="3504809124079381356">"ლოდინის მაქსიმალური დრო:"</string>
     <string name="seconds" msgid="141450721520515025">"წამი"</string>
     <string name="message_copied" msgid="6922953753733166675">"შეტყობინება კოპირებულია"</string>
+    <string name="notification_cb_settings_changed_title" msgid="7664799881479966932">"პარამეტრები შეიცვალა ოპერატორის მიერ"</string>
+    <string name="notification_cb_settings_changed_text" msgid="1397646219615654933">"შეეხეთ უსადენო საგანგებო გაფრთხილებების პარამეტრების სანახავად"</string>
 </resources>

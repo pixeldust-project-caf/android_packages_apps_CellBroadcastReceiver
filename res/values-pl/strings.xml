@@ -58,6 +58,7 @@
     <string name="notification_channel_broadcast_messages" msgid="880704362482824524">"Komunikaty"</string>
     <string name="notification_channel_emergency_alerts" msgid="5008287980979183617">"Alerty o zagrożeniu"</string>
     <string name="notification_channel_broadcast_messages_in_voicecall" msgid="3291001780110813190">"Alert o zagrożeniu podczas połączenia głosowego"</string>
+    <string name="notification_channel_settings_updates" msgid="6779759372516475085">"Automatyczne ustawienia WEA zmieniają się w zależności od karty SIM"</string>
     <string name="enable_alerts_master_toggle_title" msgid="1457904343636699446">"Zezwól na alerty"</string>
     <string name="enable_alerts_master_toggle_summary" msgid="5583168548073938617">"Otrzymuj alerty o zagrożeniu"</string>
     <string name="alert_reminder_interval_title" msgid="3283595202268218149">"Alarm z przypomnieniem"</string>
@@ -86,8 +87,7 @@
     <string name="enable_cmas_test_alerts_summary" msgid="2083089933271720217">"Otrzymuj testy operatora oraz comiesięczne testy z systemu alertów bezpieczeństwa"</string>
     <!-- no translation found for enable_exercise_test_alerts_title (6030780598569873865) -->
     <skip />
-    <!-- no translation found for enable_exercise_test_alerts_summary (4276766794979567304) -->
-    <skip />
+    <string name="enable_exercise_test_alerts_summary" msgid="4276766794979567304">"Otrzymuj alerty o zagrożeniu: komunikat o symulacji"</string>
     <string name="enable_alert_vibrate_title" msgid="5421032189422312508">"Wibracje"</string>
     <string name="override_dnd_title" msgid="5120805993144214421">"Zawsze ostrzegaj z pełną głośnością"</string>
     <string name="override_dnd_summary" msgid="9026675822792800258">"Ignoruj ustawienia dźwięku w trybie Nie przeszkadzać i innych"</string>
@@ -160,4 +160,6 @@
     <string name="maximum_waiting_time" msgid="3504809124079381356">"Maksymalny czas oczekiwania:"</string>
     <string name="seconds" msgid="141450721520515025">"sek."</string>
     <string name="message_copied" msgid="6922953753733166675">"Wiadomość skopiowana"</string>
+    <string name="notification_cb_settings_changed_title" msgid="7664799881479966932">"Ustawienia zmienione przez operatora"</string>
+    <string name="notification_cb_settings_changed_text" msgid="1397646219615654933">"Kliknij, by zobaczyć ustawienia alertów o zagrożeniu"</string>
 </resources>

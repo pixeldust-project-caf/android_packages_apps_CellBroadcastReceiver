@@ -104,6 +104,10 @@ public class CellBroadcastChannelManager {
         private static final String KEY_SCREEN_ON_DURATION = "screen_on_duration";
         /** Define whether to display warning icon in the alert dialog. */
         private static final String KEY_DISPLAY_ICON = "display_icon";
+        /** Define whether to dismiss the alert dialog for outside touches */
+        private static final String KEY_DISMISS_ON_OUTSIDE_TOUCH = "dismiss_on_outside_touch";
+        /** Define the ISO-639-1 language code associated with the alert message. */
+        private static final String KEY_LANGUAGE_CODE = "language";
 
         /**
          * Defines whether the channel needs language filter or not. True indicates that the alert
@@ -143,7 +147,14 @@ public class CellBroadcastChannelManager {
         public int mScreenOnDuration = 60000;
         // whether to display warning icon in the pop-up dialog;
         public boolean mDisplayIcon = true;
+        // whether to dismiss the alert dialog on outside touch. Typically this should be false
+        // to avoid accidental dismisses of emergency messages
+        public boolean mDismissOnOutsideTouch = false;
 
+        // This is used to override dialog title language and it's a temp workaround to bypass
+        // carrier TA due to testcase does not configure the language code, thus hardcode language
+        // code inside CBR. TODO: remove this when testcases get updated (b/167366175).
+        public String mLanguageCode;
         public CellBroadcastChannelRange(Context context, int subId, String channelRange) {
 
             mAlertType = AlertType.DEFAULT;
@@ -245,6 +256,14 @@ public class CellBroadcastChannelManager {
                                     mDisplayIcon = false;
                                 }
                                 break;
+                            case KEY_DISMISS_ON_OUTSIDE_TOUCH:
+                                if (value.equalsIgnoreCase("true")) {
+                                    mDismissOnOutsideTouch = true;
+                                }
+                                break;
+                            case KEY_LANGUAGE_CODE:
+                                mLanguageCode = value;
+                                break;
                         }
                     }
                 }
@@ -277,7 +296,8 @@ public class CellBroadcastChannelManager {
                     + ",filter_language=" + mFilterLanguage + ",override_dnd=" + mOverrideDnd
                     + ",display=" + mDisplay + ",testMode=" + mTestMode + ",mAlwaysOn="
                     + mAlwaysOn + ",ScreenOnDuration=" + mScreenOnDuration + ", displayIcon="
-                    + mDisplayIcon + "]";
+                    + mDisplayIcon + "dismissOnOutsideTouch=" + mDismissOnOutsideTouch
+                    + ", languageCode=" + mLanguageCode + "]";
         }
     }
 

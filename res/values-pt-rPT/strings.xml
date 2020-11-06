@@ -58,6 +58,7 @@
     <string name="notification_channel_broadcast_messages" msgid="880704362482824524">"Mensagens de difusão"</string>
     <string name="notification_channel_emergency_alerts" msgid="5008287980979183617">"Alertas de emergência"</string>
     <string name="notification_channel_broadcast_messages_in_voicecall" msgid="3291001780110813190">"Alertas de emergência em chamada de voz"</string>
+    <string name="notification_channel_settings_updates" msgid="6779759372516475085">"Alterações das definições de WEA automáticas baseadas no SIM"</string>
     <string name="enable_alerts_master_toggle_title" msgid="1457904343636699446">"Permitir alertas"</string>
     <string name="enable_alerts_master_toggle_summary" msgid="5583168548073938617">"Receber notificações de alerta de emergência sem fios"</string>
     <string name="alert_reminder_interval_title" msgid="3283595202268218149">"Lembrete de alerta"</string>
@@ -86,8 +87,7 @@
     <string name="enable_cmas_test_alerts_summary" msgid="2083089933271720217">"Receber testes do operador e testes mensais do sistema de alerta de segurança"</string>
     <!-- no translation found for enable_exercise_test_alerts_title (6030780598569873865) -->
     <skip />
-    <!-- no translation found for enable_exercise_test_alerts_summary (4276766794979567304) -->
-    <skip />
+    <string name="enable_exercise_test_alerts_summary" msgid="4276766794979567304">"Receber um alerta de emergência: mensagem de simulação/exercício"</string>
     <string name="enable_alert_vibrate_title" msgid="5421032189422312508">"Vibração"</string>
     <string name="override_dnd_title" msgid="5120805993144214421">"Alertar sempre no volume máximo"</string>
     <string name="override_dnd_summary" msgid="9026675822792800258">"Ignorar o modo Não incomodar e outras definições de volume"</string>
@@ -160,4 +160,6 @@
     <string name="maximum_waiting_time" msgid="3504809124079381356">"Tempo de espera máximo:"</string>
     <string name="seconds" msgid="141450721520515025">"segundos"</string>
     <string name="message_copied" msgid="6922953753733166675">"Mensagem copiada."</string>
+    <string name="notification_cb_settings_changed_title" msgid="7664799881479966932">"Definições alteradas pelo operador"</string>
+    <string name="notification_cb_settings_changed_text" msgid="1397646219615654933">"Toque para ver definições de alertas de emergência sem fios"</string>
 </resources>

@@ -159,6 +159,9 @@ public class CellBroadcastSettings extends Activity {
     private static final String CBR_MODULE_PERMISSION =
             "com.android.cellbroadcastservice.FULL_ACCESS_CELL_BROADCAST_HISTORY";
 
+    // Key for shared preference which represents whether user has changed any preference
+    private static final String ANY_PREFERENCE_CHANGED_BY_USER = "any_preference_changed_by_user";
+
     // Test override for disabling the subId specific resources
     private static boolean sUseResourcesForSubId = true;
 
@@ -247,6 +250,22 @@ public class CellBroadcastSettings extends Activity {
         } else {
             PreferenceManager.setDefaultValues(c, R.xml.preferences, true);
         }
+        setPreferenceChanged(c, false);
+    }
+
+    /**
+     * Return true if user has modified any preference manually.
+     * @param c the application context
+     * @return
+     */
+    public static boolean hasAnyPreferenceChanged(Context c) {
+        return PreferenceManager.getDefaultSharedPreferences(c)
+                .getBoolean(ANY_PREFERENCE_CHANGED_BY_USER, false);
+    }
+
+    private static void setPreferenceChanged(Context c, boolean changed) {
+        SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(c);
+        sp.edit().putBoolean(ANY_PREFERENCE_CHANGED_BY_USER, changed).apply();
     }
 
     /**
@@ -388,6 +407,7 @@ public class CellBroadcastSettings extends Activity {
                         public boolean onPreferenceChange(Preference pref, Object newValue) {
                             CellBroadcastReceiver.startConfigService(pref.getContext(),
                                     CellBroadcastConfigService.ACTION_ENABLE_CHANNELS);
+                            setPreferenceChanged(getContext(), true);
 
                             if (mDisableSevereWhenExtremeDisabled) {
                                 if (pref.getKey().equals(KEY_ENABLE_CMAS_EXTREME_THREAT_ALERTS)) {
@@ -407,14 +427,12 @@ public class CellBroadcastSettings extends Activity {
                             // check if area update was disabled
                             if (pref.getKey().equals(KEY_ENABLE_AREA_UPDATE_INFO_ALERTS)) {
                                 boolean isEnabledAlert = (Boolean) newValue;
-                                if (!isEnabledAlert) {
-                                    Intent areaInfoIntent = new Intent(AREA_INFO_UPDATE_ACTION);
-                                    areaInfoIntent.putExtra(AREA_INFO_UPDATE_ENABLED_EXTRA,
-                                            isEnabledAlert);
-                                    // sending broadcast protected by the permission which is only
-                                    // granted for CBR mainline module.
-                                    getContext().sendBroadcast(areaInfoIntent, CBR_MODULE_PERMISSION);
-                                }
+                                Intent areaInfoIntent = new Intent(AREA_INFO_UPDATE_ACTION);
+                                areaInfoIntent.putExtra(AREA_INFO_UPDATE_ENABLED_EXTRA,
+                                        isEnabledAlert);
+                                // sending broadcast protected by the permission which is only
+                                // granted for CBR mainline module.
+                                getContext().sendBroadcast(areaInfoIntent, CBR_MODULE_PERMISSION);
                             }
 
                             // Notify backup manager a backup pass is needed.
@@ -433,7 +451,8 @@ public class CellBroadcastSettings extends Activity {
                     setAlertsEnabled(false);
                 }
             }
-
+            // note that mPresidentialCheckBox does not use the startConfigServiceListener because
+            // the user is never allowed to change the preference
             if (mAreaUpdateInfoCheckBox != null) {
                 mAreaUpdateInfoCheckBox.setOnPreferenceChangeListener(startConfigServiceListener);
             }
@@ -614,7 +633,7 @@ public class CellBroadcastSettings extends Activity {
                 // In that case, no need to show vibration toggle for users.
                 mEnableVibrateCheckBox.setVisible(
                         res.getBoolean(R.bool.show_override_dnd_settings)
-                                || !res.getBoolean(R.bool.override_dnd_default));
+                                || !res.getBoolean(R.bool.override_dnd));
             }
             if (mAlertsHeader != null) {
                 mAlertsHeader.setVisible(

@@ -58,6 +58,7 @@
     <string name="notification_channel_broadcast_messages" msgid="880704362482824524">"ข้อความการออกอากาศ"</string>
     <string name="notification_channel_emergency_alerts" msgid="5008287980979183617">"การแจ้งเหตุฉุกเฉิน"</string>
     <string name="notification_channel_broadcast_messages_in_voicecall" msgid="3291001780110813190">"การแจ้งเหตุฉุกเฉินระหว่างการโทรสนทนา"</string>
+    <string name="notification_channel_settings_updates" msgid="6779759372516475085">"การตั้งค่า WEA เปลี่ยนแปลงตาม SIM โดยอัตโนมัติ"</string>
     <string name="enable_alerts_master_toggle_title" msgid="1457904343636699446">"อนุญาตการแจ้งเตือน"</string>
     <string name="enable_alerts_master_toggle_summary" msgid="5583168548073938617">"รับการแจ้งเตือนเหตุฉุกเฉินแบบไร้สาย"</string>
     <string name="alert_reminder_interval_title" msgid="3283595202268218149">"การช่วยเตือนซ้ำ"</string>
@@ -86,8 +87,7 @@
     <string name="enable_cmas_test_alerts_summary" msgid="2083089933271720217">"รับการทดสอบของผู้ให้บริการและการทดสอบรายเดือนจากระบบแจ้งเตือนความปลอดภัย"</string>
     <!-- no translation found for enable_exercise_test_alerts_title (6030780598569873865) -->
     <skip />
-    <!-- no translation found for enable_exercise_test_alerts_summary (4276766794979567304) -->
-    <skip />
+    <string name="enable_exercise_test_alerts_summary" msgid="4276766794979567304">"รับการแจ้งเตือนฉุกเฉิน: ข้อความทดสอบ/ฝึกซ้อม"</string>
     <string name="enable_alert_vibrate_title" msgid="5421032189422312508">"การสั่น"</string>
     <string name="override_dnd_title" msgid="5120805993144214421">"ส่งเสียงการแจ้งเตือนที่ระดับเสียงสูงสุดทุกครั้ง"</string>
     <string name="override_dnd_summary" msgid="9026675822792800258">"ไม่สนใจโหมดห้ามรบกวนและการตั้งค่าระดับเสียงอื่นๆ"</string>
@@ -160,4 +160,6 @@
     <string name="maximum_waiting_time" msgid="3504809124079381356">"เวลารอสูงสุด:"</string>
     <string name="seconds" msgid="141450721520515025">"วินาที"</string>
     <string name="message_copied" msgid="6922953753733166675">"คัดลอกข้อความแล้ว"</string>
+    <string name="notification_cb_settings_changed_title" msgid="7664799881479966932">"มีการเปลี่ยนแปลงการตั้งค่าโดยผู้ให้บริการ"</string>
+    <string name="notification_cb_settings_changed_text" msgid="1397646219615654933">"แตะเพื่อดูการตั้งค่าการแจ้งเตือนฉุกเฉินแบบไร้สาย"</string>
 </resources>

@@ -306,6 +306,11 @@ public class CellBroadcastAlertDialog extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // if this is only to dismiss any pending alert dialog
+        if (getIntent().getBooleanExtra(CellBroadcastAlertService.DISMISS_DIALOG, false)) {
+            dismissAllFromNotification(getIntent());
+            return;
+        }
 
         final Window win = getWindow();
 
@@ -323,8 +328,6 @@ public class CellBroadcastAlertDialog extends Activity {
             final View decorView = win.getDecorView();
             decorView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_HIDE_NAVIGATION);
         }
-
-        setFinishOnTouchOutside(false);
 
         // Initialize the view.
         LayoutInflater inflater = LayoutInflater.from(this);
@@ -369,6 +372,10 @@ public class CellBroadcastAlertDialog extends Activity {
                         + message.getSubscriptionId());
                 mScreenOffHandler.startScreenOnTimer(message);
             }
+
+            CellBroadcastChannelRange range =
+                    channelManager.getCellBroadcastChannelRangeFromMessage(message);
+            setFinishOnTouchOutside(range != null && range.mDismissOnOutsideTouch);
 
             updateAlertText(message);
 
@@ -433,9 +440,7 @@ public class CellBroadcastAlertDialog extends Activity {
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         if (!(isChangingConfigurations() || getLatestMessage() == null) && pm.isScreenOn()) {
             CellBroadcastAlertService.addToNotificationBar(getLatestMessage(), mMessageList,
-                    getApplicationContext(), true, true);
-            // Stop playing alert sound/vibration/speech (if started)
-            stopService(new Intent(this, CellBroadcastAlertAudio.class));
+                    getApplicationContext(), true, true, false);
         }
         // Do not stop the audio here. Pressing power button should turn off screen but should not
         // interrupt the audio/vibration
@@ -587,7 +592,20 @@ public class CellBroadcastAlertDialog extends Activity {
         int titleId = CellBroadcastResources.getDialogTitleResource(context, message);
 
         Resources res = CellBroadcastSettings.getResources(context, message.getSubscriptionId());
-        String title = overrideTranslation(titleId, res, message.getLanguageCode());
+        // This is a temp workaround to bypass carrier TA where the testcase does not set the
+        // language code correctly. TODO: remove this when the testcase get updated.
+        CellBroadcastChannelManager channelManager = new CellBroadcastChannelManager(
+                this, message.getSubscriptionId());
+        CellBroadcastChannelRange range = channelManager
+                .getCellBroadcastChannelRangeFromMessage(message);
+        String languageCode;
+        if (range != null && !TextUtils.isEmpty(range.mLanguageCode)) {
+            languageCode = range.mLanguageCode;
+        } else {
+            languageCode = message.getLanguageCode();
+        }
+
+        String title = overrideTranslation(titleId, res, languageCode);
         TextView titleTextView = findViewById(R.id.alertTitle);
 
         if (titleTextView != null) {
@@ -681,12 +699,21 @@ public class CellBroadcastAlertDialog extends Activity {
     @Override
     @VisibleForTesting
     public void onNewIntent(Intent intent) {
+        if (intent.getBooleanExtra(CellBroadcastAlertService.DISMISS_DIALOG, false)) {
+            dismissAllFromNotification(intent);
+            return;
+        }
         ArrayList<SmsCbMessage> newMessageList = intent.getParcelableArrayListExtra(
                 CellBroadcastAlertService.SMS_CB_MESSAGE_EXTRA);
         if (newMessageList != null) {
             if (intent.getBooleanExtra(FROM_SAVE_STATE_NOTIFICATION_EXTRA, false)) {
                 mMessageList = newMessageList;
             } else {
+                // remove the duplicate messages
+                for (SmsCbMessage message : newMessageList) {
+                    mMessageList.removeIf(
+                            msg -> msg.getReceivedTime() == message.getReceivedTime());
+                }
                 mMessageList.addAll(newMessageList);
                 if (CellBroadcastSettings.getResourcesForDefaultSubId(getApplicationContext())
                         .getBoolean(R.bool.show_cmas_messages_in_priority_order)) {
@@ -750,6 +777,29 @@ public class CellBroadcastAlertDialog extends Activity {
             notificationManager.cancel(CellBroadcastAlertService.NOTIFICATION_ID);
             CellBroadcastReceiverApp.clearNewMessageList();
         }
+    }
+
+    /**
+     * This will be called when users swipe away the notification, this will
+     * 1. dismiss all foreground dialog, stop animating warning icon and stop the
+     * {@link CellBroadcastAlertAudio} service.
+     * 2. Does not mark message read.
+     */
+    public void dismissAllFromNotification(Intent intent) {
+        Log.d(TAG, "dismissAllFromNotification");
+        // Stop playing alert sound/vibration/speech (if started)
+        stopService(new Intent(this, CellBroadcastAlertAudio.class));
+        // Cancel any pending alert reminder
+        CellBroadcastAlertReminder.cancelAlertReminder();
+        // Remove the all current showing alert message from the list.
+        if (mMessageList != null) {
+            mMessageList.clear();
+        }
+        // clear notifications.
+        clearNotification(intent);
+        // Remove pending screen-off messages (animation messages are removed in onPause()).
+        mScreenOffHandler.stopScreenOnTimer();
+        finish();
     }
 
     /**
@@ -936,7 +986,7 @@ public class CellBroadcastAlertDialog extends Activity {
             // do not alert if remove unread messages from the notification bar.
            CellBroadcastAlertService.addToNotificationBar(
                    CellBroadcastReceiverApp.getLatestMessage(),
-                   unreadMessageList, context,false, false);
+                   unreadMessageList, context,false, false, false);
         }
     }
 }
