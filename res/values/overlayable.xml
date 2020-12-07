@@ -141,6 +141,13 @@
             This is used to support emergency alert on the companion devices by bridged notification -->
             <item type="bool" name="show_alert_dialog_with_notification" />
 
+            <!-- Whether enable LED flash when playing alert tones -->
+            <item type="bool" name="enable_led_flash" />
+
+            <!-- Whether to show the alert dialog at the bottom of the screen in order to avoid
+                 blocking other content -->
+            <item type="bool" name="alert_dialog_bottom" />
+
             <!-- Temporarily enable string customization to address translation issues. All translation issues will be fixed in S by upstreaming -->
             <!-- Dialog title for presidential level alert. [CHAR LIMIT=50] -->
             <!-- The name of the Cell Broadcast Receiver app. [CHAR LIMIT=NONE] -->
@@ -278,6 +285,8 @@
             <item type="string" name="enable_alert_speech_summary" />
             <item type="string" name="enable_exercise_test_alerts_title" />
             <item type="string" name="enable_exercise_test_alerts_summary" />
+            <item type="string" name="enable_operator_defined_test_alerts_title" />
+            <item type="string" name="enable_operator_defined_test_alerts_summary" />
         </policy>
         <!-- END VENDOR CUSTOMIZATION -->
 
