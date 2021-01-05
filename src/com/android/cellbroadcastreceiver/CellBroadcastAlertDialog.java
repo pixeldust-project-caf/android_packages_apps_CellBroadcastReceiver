@@ -24,10 +24,12 @@ import android.app.KeyguardManager;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.RemoteAction;
+import android.content.BroadcastReceiver;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.content.res.Resources;
@@ -86,9 +88,9 @@ public class CellBroadcastAlertDialog extends Activity {
 
     private static final String TAG = "CellBroadcastAlertDialog";
 
-    /** Intent extra for non-emergency alerts sent when user selects the notification. */
+    /** Intent extra indicate this intent should not dismiss the notification */
     @VisibleForTesting
-    public static final String FROM_NOTIFICATION_EXTRA = "from_notification";
+    public static final String DISMISS_NOTIFICATION_EXTRA = "dismiss_notification";
 
     // Intent extra to identify if notification was sent while trying to move away from the dialog
     //  without acknowledging the dialog
@@ -158,6 +160,18 @@ public class CellBroadcastAlertDialog extends Activity {
     // Show the opt-out dialog
     private AlertDialog mOptOutDialog;
 
+    /** BroadcastReceiver for screen off events. When screen was off, remove FLAG_TURN_SCREEN_ON to
+     * start from a clean state. Otherwise, the window flags from the first alert will be
+     * automatically applied to the following alerts handled at onNewIntent.
+     */
+    private BroadcastReceiver mScreenOffReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent){
+            Log.d(TAG, "onSreenOff: remove FLAG_TURN_SCREEN_ON flag");
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
+        }
+    };
+
     /**
      * Animation handler for the flashing warning icon (emergency alerts only).
      */
@@ -197,9 +211,6 @@ public class CellBroadcastAlertDialog extends Activity {
         public void stopIconAnimation() {
             // Increment the counter so the handler will ignore the next message.
             mCount.incrementAndGet();
-            if (mWarningIconView != null) {
-                mWarningIconView.setVisibility(View.GONE);
-            }
         }
 
         /** Update the visibility of the warning icon. */
@@ -367,6 +378,8 @@ public class CellBroadcastAlertDialog extends Activity {
             clearNotification(intent);
         }
 
+        registerReceiver(mScreenOffReceiver, new IntentFilter(Intent.ACTION_SCREEN_OFF));
+
         if (mMessageList == null || mMessageList.size() == 0) {
             Log.e(TAG, "onCreate failed as message list is null or empty");
             finish();
@@ -424,6 +437,7 @@ public class CellBroadcastAlertDialog extends Activity {
     public void onResume() {
         super.onResume();
         setWindowBottom();
+        setMaxHeightScrollView();
         SmsCbMessage message = getLatestMessage();
         if (message != null) {
             int subId = message.getSubscriptionId();
@@ -766,6 +780,18 @@ public class CellBroadcastAlertDialog extends Activity {
         }
     }
 
+    private void setMaxHeightScrollView() {
+        int contentPanelMaxHeight = getResources().getDimensionPixelSize(
+                R.dimen.alert_dialog_maxheight_content_panel);
+        if (contentPanelMaxHeight > 0) {
+            CustomHeightScrollView scrollView = (CustomHeightScrollView) findViewById(
+                    R.id.scrollView);
+            if (scrollView != null) {
+                scrollView.setMaximumHeight(contentPanelMaxHeight);
+            }
+        }
+    }
+
     /**
      * Called by {@link CellBroadcastAlertService} to add a new alert to the stack.
      * @param intent The new intent containing one or more {@link SmsCbMessage}.
@@ -845,7 +871,7 @@ public class CellBroadcastAlertDialog extends Activity {
      * @param intent Intent containing extras used to identify if notification needs to be cleared
      */
     private void clearNotification(Intent intent) {
-        if (intent.getBooleanExtra(FROM_NOTIFICATION_EXTRA, false)) {
+        if (intent.getBooleanExtra(DISMISS_NOTIFICATION_EXTRA, false)) {
             NotificationManager notificationManager =
                     (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             notificationManager.cancel(CellBroadcastAlertService.NOTIFICATION_ID);
@@ -961,6 +987,12 @@ public class CellBroadcastAlertDialog extends Activity {
             }
         }
         finish();
+    }
+
+    @Override
+    public void onDestroy() {
+        unregisterReceiver(mScreenOffReceiver);
+        super.onDestroy();
     }
 
     @Override
