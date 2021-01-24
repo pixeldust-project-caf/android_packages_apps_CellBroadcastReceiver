@@ -27,7 +27,6 @@ import static org.mockito.Mockito.verify;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.os.Bundle;
 import android.os.IPowerManager;
@@ -35,12 +34,10 @@ import android.os.IThermalService;
 import android.os.Looper;
 import android.os.Message;
 import android.os.PowerManager;
-import android.preference.PreferenceManager;
 import android.telephony.SmsCbMessage;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -187,37 +184,9 @@ public class CellBroadcastAlertDialogTest extends
                 eq(CellBroadcastAlertService.NOTIFICATION_ID));
     }
 
-    @InstrumentationTest
-    // This test has a module dependency (it uses the CellBroadcastContentProvider), so it is
-    // disabled for OEM testing because it is not a true unit test
-    public void testDismissWithDialog() throws Throwable {
-        // in order to trigger mShowOptOutDialog=true, the message should not be a presidential
-        // alert (the default message we send in this test)
-        mServiceCategory = SmsCbConstants.MESSAGE_ID_CMAS_ALERT_CHILD_ABDUCTION_EMERGENCY;
-        mCmasMessageClass = SmsCbConstants.MESSAGE_ID_CMAS_ALERT_CHILD_ABDUCTION_EMERGENCY;
-
-        // prepare the looper so we can create opt out dialog
-        Looper.prepare();
-
-        // enable opt out dialog in shared prefs
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(mContext);
-        prefs.edit().putBoolean(CellBroadcastSettings.KEY_SHOW_CMAS_OPT_OUT_DIALOG, true).apply();
-
-        boolean triedToCreateDialog = false;
-        try {
-            CellBroadcastAlertDialog activity = startActivity();
-            waitForMs(100);
-            activity.dismiss();
-        } catch (WindowManager.BadTokenException e) {
-            triedToCreateDialog = true;
-        }
-
-        assertTrue(triedToCreateDialog);
-    }
-
     public void testOnNewIntent() throws Throwable {
         Intent intent = createActivityIntent();
-        intent.putExtra(CellBroadcastAlertDialog.FROM_NOTIFICATION_EXTRA, true);
+        intent.putExtra(CellBroadcastAlertDialog.DISMISS_NOTIFICATION_EXTRA, true);
 
         Looper.prepare();
         CellBroadcastAlertDialog activity = startActivity(intent, null, null);
@@ -253,7 +222,7 @@ public class CellBroadcastAlertDialogTest extends
 
     public void testOnResume() throws Throwable {
         Intent intent = createActivityIntent();
-        intent.putExtra(CellBroadcastAlertDialog.FROM_NOTIFICATION_EXTRA, true);
+        intent.putExtra(CellBroadcastAlertDialog.DISMISS_NOTIFICATION_EXTRA, true);
 
         Looper.prepare();
         CellBroadcastAlertDialog activity = startActivity(intent, null, null);
@@ -268,7 +237,7 @@ public class CellBroadcastAlertDialogTest extends
 
     public void testOnPause() throws Throwable {
         Intent intent = createActivityIntent();
-        intent.putExtra(CellBroadcastAlertDialog.FROM_NOTIFICATION_EXTRA, true);
+        intent.putExtra(CellBroadcastAlertDialog.DISMISS_NOTIFICATION_EXTRA, true);
 
         Looper.prepare();
         CellBroadcastAlertDialog activity = startActivity(intent, null, null);
@@ -283,7 +252,7 @@ public class CellBroadcastAlertDialogTest extends
 
     public void testOnKeyDown() throws Throwable {
         Intent intent = createActivityIntent();
-        intent.putExtra(CellBroadcastAlertDialog.FROM_NOTIFICATION_EXTRA, true);
+        intent.putExtra(CellBroadcastAlertDialog.DISMISS_NOTIFICATION_EXTRA, true);
 
         Looper.prepare();
         CellBroadcastAlertDialog activity = startActivity(intent, null, null);
@@ -328,7 +297,7 @@ public class CellBroadcastAlertDialogTest extends
                 CellBroadcastAlertDialog.class);
         intent.putParcelableArrayListExtra(CellBroadcastAlertService.SMS_CB_MESSAGE_EXTRA,
                 mMessageList);
-        intent.putExtra(CellBroadcastAlertDialog.FROM_NOTIFICATION_EXTRA, true);
+        intent.putExtra(CellBroadcastAlertDialog.DISMISS_NOTIFICATION_EXTRA, true);
         Looper.prepare();
         CellBroadcastAlertDialog activity = startActivity(intent, null, null);
 
