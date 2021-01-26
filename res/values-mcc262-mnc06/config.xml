@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Copyright (C) 2017 The Android Open Source Project
+<!-- Copyright (C) 2020 The Android Open Source Project
 
      Licensed under the Apache License, Version 2.0 (the "License");
      you may not use this file except in compliance with the License.
@@ -15,13 +15,6 @@
 -->
 
 <resources>
-    <string-array name="etws_alerts_range_strings" translatable="false">
-        <!-- 0x1100 for earthquake -->
-        <item>0x1100:rat=gsm, type=etws_earthquake, emergency=true</item>
-        <!-- 0x1101 for tsunami -->
-        <item>0x1101:rat=gsm, type=etws_tsunami, emergency=true</item>
-        <!-- 0xA807 and 0xA808 for other purposes -->
-        <item>0xA807:rat=gsm, type=other, emergency=true, scope=carrier</item>
-        <item>0xA808:rat=gsm, type=other, emergency=true, scope=carrier</item>
-    </string-array>
+    <!-- Main toggle default value -->
+    <bool name="master_toggle_enabled_default">false</bool>
 </resources>
