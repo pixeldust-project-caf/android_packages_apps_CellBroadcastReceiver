@@ -57,6 +57,7 @@
     <string name="emergency_alerts_title" msgid="6605036374197485429">"Хабарландырулар"</string>
     <string name="notification_channel_broadcast_messages" msgid="880704362482824524">"Таратылым хабарлары"</string>
     <string name="notification_channel_emergency_alerts" msgid="5008287980979183617">"Төтенше жағдай туралы хабарламалар"</string>
+    <string name="notification_channel_emergency_alerts_high_priority" msgid="3937475297436439073">"Расталмаған төтенше жағдай хабарландырулары"</string>
     <string name="notification_channel_broadcast_messages_in_voicecall" msgid="3291001780110813190">"Дауыстық қоңыраудағы төтенше жағдай ескертулері"</string>
     <string name="notification_channel_settings_updates" msgid="6779759372516475085">"WEA параметрлеріне SIM картасы негізінде автоматты өзгертулар енгізу"</string>
     <string name="enable_alerts_master_toggle_title" msgid="1457904343636699446">"Хабарландыруларға рұқсат беру"</string>
@@ -94,7 +95,7 @@
     <string name="enable_alert_vibrate_title" msgid="5421032189422312508">"Діріл"</string>
     <string name="enable_alert_vibrate_summary" msgid="4733669825477146614"></string>
     <string name="override_dnd_title" msgid="5120805993144214421">"Әрдайым қатты дыбыспен ескерту"</string>
-    <string name="override_dnd_summary" msgid="9026675822792800258">"\"Мазаламау\" режимін және басқа дыбыс деңгейі параметрлерін елемеу"</string>
+    <string name="override_dnd_summary" msgid="9026675822792800258">"Мазаламау режимін және басқа дыбыс деңгейі параметрлерін елемеу"</string>
     <string name="enable_area_update_info_alerts_title" msgid="3442042268424617226">"Жергілікті жаңартылған ақпаратты тарату"</string>
     <string name="enable_area_update_info_alerts_summary" msgid="6437816607144264910">"SIM күйінде жаңарту ақпаратын көрсету"</string>
     <string name="cmas_category_heading" msgid="3923503130776640717">"Дабыл санаты:"</string>

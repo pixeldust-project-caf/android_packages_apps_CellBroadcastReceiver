@@ -17,8 +17,6 @@
 package com.android.cellbroadcastreceiver;
 
 import android.annotation.NonNull;
-import android.app.ActionBar;
-import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.Fragment;
 import android.app.backup.BackupManager;
@@ -47,6 +45,7 @@ import androidx.preference.PreferenceScreen;
 import androidx.preference.TwoStatePreference;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.settingslib.collapsingtoolbar.CollapsingToolbarBaseActivity;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -54,7 +53,7 @@ import java.util.Map;
 /**
  * Settings activity for the cell broadcast receiver.
  */
-public class CellBroadcastSettings extends Activity {
+public class CellBroadcastSettings extends CollapsingToolbarBaseActivity {
 
     private static final String TAG = "CellBroadcastSettings";
 
@@ -172,12 +171,6 @@ public class CellBroadcastSettings extends Activity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        ActionBar actionBar = getActionBar();
-        if (actionBar != null) {
-            // android.R.id.home will be triggered in onOptionsItemSelected()
-            actionBar.setDisplayHomeAsUpEnabled(true);
-        }
-
         UserManager userManager = (UserManager) getSystemService(Context.USER_SERVICE);
         if (userManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_CELL_BROADCASTS)) {
             setContentView(R.layout.cell_broadcast_disallowed_preference_screen);
@@ -185,12 +178,13 @@ public class CellBroadcastSettings extends Activity {
         }
 
         // We only add new CellBroadcastSettingsFragment if no fragment is restored.
-        Fragment fragment = getFragmentManager().findFragmentById(android.R.id.content);
+        Fragment fragment = getFragmentManager().findFragmentById(
+                com.android.settingslib.collapsingtoolbar.R.id.content_frame);
         if (fragment == null) {
             fragment = new CellBroadcastSettingsFragment();
             getFragmentManager()
                     .beginTransaction()
-                    .add(android.R.id.content, fragment)
+                    .add(com.android.settingslib.collapsingtoolbar.R.id.content_frame, fragment)
                     .commit();
         }
     }
@@ -434,12 +428,7 @@ public class CellBroadcastSettings extends Activity {
                             // check if area update was disabled
                             if (pref.getKey().equals(KEY_ENABLE_AREA_UPDATE_INFO_ALERTS)) {
                                 boolean isEnabledAlert = (Boolean) newValue;
-                                Intent areaInfoIntent = new Intent(AREA_INFO_UPDATE_ACTION);
-                                areaInfoIntent.putExtra(AREA_INFO_UPDATE_ENABLED_EXTRA,
-                                        isEnabledAlert);
-                                // sending broadcast protected by the permission which is only
-                                // granted for CBR mainline module.
-                                getContext().sendBroadcast(areaInfoIntent, CBR_MODULE_PERMISSION);
+                                notifyAreaInfoUpdate(isEnabledAlert);
                             }
 
                             // Notify backup manager a backup pass is needed.
@@ -555,7 +544,7 @@ public class CellBroadcastSettings extends Activity {
             Resources res = CellBroadcastSettings.getResourcesForDefaultSubId(getContext());
 
             CellBroadcastChannelManager channelManager = new CellBroadcastChannelManager(
-                    getContext(), SubscriptionManager.DEFAULT_SUBSCRIPTION_ID);
+                    getContext(), SubscriptionManager.getDefaultSubscriptionId());
 
             if (mMasterToggle != null) {
                 mMasterToggle.setVisible(res.getBoolean(R.bool.show_main_switch_settings));
@@ -655,9 +644,9 @@ public class CellBroadcastSettings extends Activity {
                 // override DND default is turned off.
                 // In some countries, override DND is always on, which means vibration is always on.
                 // In that case, no need to show vibration toggle for users.
-                mEnableVibrateCheckBox.setVisible(
-                        res.getBoolean(R.bool.show_override_dnd_settings)
-                                || !res.getBoolean(R.bool.override_dnd));
+                mEnableVibrateCheckBox.setVisible(res.getBoolean(R.bool.show_vibration_settings)
+                        && (res.getBoolean(R.bool.show_override_dnd_settings) ||
+                        !res.getBoolean(R.bool.override_dnd)));
             }
             if (mAlertsHeader != null) {
                 mAlertsHeader.setVisible(
@@ -722,6 +711,7 @@ public class CellBroadcastSettings extends Activity {
             if (mAreaUpdateInfoCheckBox != null) {
                 mAreaUpdateInfoCheckBox.setEnabled(alertsEnabled);
                 mAreaUpdateInfoCheckBox.setChecked(alertsEnabled);
+                notifyAreaInfoUpdate(alertsEnabled);
             }
             if (mEmergencyAlertsCheckBox != null) {
                 mEmergencyAlertsCheckBox.setEnabled(alertsEnabled);
@@ -749,6 +739,15 @@ public class CellBroadcastSettings extends Activity {
             }
         }
 
+        private void notifyAreaInfoUpdate(boolean enabled) {
+            Intent areaInfoIntent = new Intent(AREA_INFO_UPDATE_ACTION);
+            areaInfoIntent.putExtra(AREA_INFO_UPDATE_ENABLED_EXTRA, enabled);
+            // sending broadcast protected by the permission which is only
+            // granted for CBR mainline module.
+            getContext().sendBroadcast(areaInfoIntent, CBR_MODULE_PERMISSION);
+        }
+
+
         @Override
         public void onResume() {
             super.onResume();
@@ -765,7 +764,7 @@ public class CellBroadcastSettings extends Activity {
 
     public static boolean isTestAlertsToggleVisible(Context context) {
         CellBroadcastChannelManager channelManager = new CellBroadcastChannelManager(context,
-                SubscriptionManager.DEFAULT_SUBSCRIPTION_ID);
+                SubscriptionManager.getDefaultSubscriptionId());
         Resources res = CellBroadcastSettings.getResourcesForDefaultSubId(context);
         boolean isTestAlertsAvailable = !channelManager.getCellBroadcastChannelRanges(
                 R.array.required_monthly_test_range_strings).isEmpty()
