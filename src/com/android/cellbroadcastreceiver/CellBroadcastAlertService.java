@@ -861,6 +861,7 @@ public class CellBroadcastAlertService extends Service {
         Intent intent = new Intent(context, intentClass);
         intent.putParcelableArrayListExtra(CellBroadcastAlertService.SMS_CB_MESSAGE_EXTRA,
                 messageList);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NO_USER_ACTION);
         return intent;
     }
 
