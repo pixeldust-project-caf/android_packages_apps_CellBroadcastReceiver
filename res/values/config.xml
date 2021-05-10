@@ -31,12 +31,12 @@
     <bool name="show_amber_alert_settings">true</bool>
     <!-- Whether to show test settings -->
     <bool name="show_test_settings">true</bool>
-    <!-- Whether to show vibration settings -->
-    <bool name="show_vibration_settings">true</bool>
     <!-- Whether to append date-time to the alert title -->
     <bool name="show_date_time_title">false</bool>
     <!-- if appending date-time to alert title, whether to include year -->
     <bool name="show_date_time_with_year_title">false</bool>
+    <!-- if appending date-time to alert title, whether to include weekday -->
+    <bool name="show_date_time_with_weekday_title">false</bool>
     <!-- if appending date-time to alert title, whether to use numeric format -->
     <bool name="show_date_in_numeric_format">false</bool>
     <!-- Whether to compare message body when performing message duplicate dection -->
@@ -49,6 +49,8 @@
     <bool name="ignore_messages_in_ecbm">false</bool>
     <!-- Whether to display public safety alert settings, some countries/carriers want to enable it by default and not allow users to disable -->
     <bool name="show_public_safety_settings">true</bool>
+    <!-- Whether to show settings that allows user to turn off full-screen public safety messages -->
+    <bool name="show_public_safety_full_screen_settings">false</bool>
     <!-- Whether to display state/local test settings, some countries/carriers want to enable it by default and not allow users to disable -->
     <bool name="show_state_local_test_settings">true</bool>
     <!-- Whether to display exercise test settings when testing mode is off. -->
@@ -91,6 +93,8 @@
     <bool name="severe_threat_alerts_enabled_default">true</bool>
     <!-- Public safety messages toggle default value -->
     <bool name="public_safety_messages_enabled_default">true</bool>
+    <!-- Public safety full-screen messages toggle default value -->
+    <bool name="public_safety_messages_full_screen_enabled_default">true</bool>
     <!-- State local test alerts toggle default value -->
     <bool name="state_local_test_alerts_enabled_default">false</bool>
     <!-- Other test alerts toggle default value -->
