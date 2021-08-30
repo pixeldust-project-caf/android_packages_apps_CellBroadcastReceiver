@@ -17,6 +17,7 @@
 package com.android.cellbroadcastreceiver;
 
 import android.annotation.NonNull;
+import android.app.ActionBar;
 import android.app.ActivityManager;
 import android.app.Fragment;
 import android.app.backup.BackupManager;
@@ -33,6 +34,7 @@ import android.os.UserManager;
 import android.os.Vibrator;
 import android.telephony.CarrierConfigManager;
 import android.telephony.SubscriptionManager;
+import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.view.MenuItem;
 import android.widget.Switch;
@@ -47,6 +49,7 @@ import androidx.preference.PreferenceScreen;
 import androidx.preference.TwoStatePreference;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.modules.utils.build.SdkLevel;
 import com.android.settingslib.collapsingtoolbar.CollapsingToolbarBaseActivity;
 import com.android.settingslib.widget.MainSwitchPreference;
 import com.android.settingslib.widget.OnMainSwitchChangeListener;
@@ -179,7 +182,20 @@ public class CellBroadcastSettings extends CollapsingToolbarBaseActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // for backward compatibility on R devices
+        if (!SdkLevel.isAtLeastS()) {
+            setCustomizeContentView(R.layout.cell_broadcast_list_collapsing_no_toobar);
+        }
         super.onCreate(savedInstanceState);
+
+        // for backward compatibility on R devices
+        if (!SdkLevel.isAtLeastS()) {
+            ActionBar actionBar = getActionBar();
+            if (actionBar != null) {
+                // android.R.id.home will be triggered in onOptionsItemSelected()
+                actionBar.setDisplayHomeAsUpEnabled(true);
+            }
+        }
 
         UserManager userManager = (UserManager) getSystemService(Context.USER_SERVICE);
         if (userManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_CELL_BROADCASTS)) {
@@ -847,8 +863,14 @@ public class CellBroadcastSettings extends CollapsingToolbarBaseActivity {
      * @return The resource
      */
     public static @NonNull Resources getResources(@NonNull Context context, int subId) {
+        // based on the latest design, subId can be valid earlier than mcc mnc is known to telephony
+        // check if sim is loaded to avoid caching the wrong resources.
+        TelephonyManager tm = context.getSystemService(TelephonyManager.class);
+        boolean isSimLoaded = tm.getSimApplicationState(SubscriptionManager.getSlotIndex(subId))
+                == TelephonyManager.SIM_STATE_LOADED;
         if (subId == SubscriptionManager.DEFAULT_SUBSCRIPTION_ID
-                || !SubscriptionManager.isValidSubscriptionId(subId) || !sUseResourcesForSubId) {
+                || !SubscriptionManager.isValidSubscriptionId(subId) || !sUseResourcesForSubId
+                || !isSimLoaded) {
             return context.getResources();
         }
 
