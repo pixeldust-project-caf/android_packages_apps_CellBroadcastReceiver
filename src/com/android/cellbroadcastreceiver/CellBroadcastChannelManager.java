@@ -114,6 +114,10 @@ public class CellBroadcastChannelManager {
         private static final String KEY_DISMISS_ON_OUTSIDE_TOUCH = "dismiss_on_outside_touch";
         /** Define whether to enable this only in userdebug/eng build. */
         private static final String KEY_DEBUG_BUILD_ONLY = "debug_build";
+        /** Define the ISO-639-1 language code associated with the alert message. */
+        private static final String KEY_LANGUAGE_CODE = "language";
+        /** Define whether to display dialog and notification */
+        private static final String KEY_DIALOG_WITH_NOTIFICATION = "dialog_with_notification";
 
         /**
          * Defines whether the channel needs language filter or not. True indicates that the alert
@@ -158,6 +162,10 @@ public class CellBroadcastChannelManager {
         public boolean mDismissOnOutsideTouch = false;
         // Whether the channels are disabled
         public boolean mIsDebugBuildOnly = false;
+        // This is used to override dialog title language
+        public String mLanguageCode;
+        // Display both ways dialog and notification
+        public boolean mDisplayDialogWithNotification = false;
 
         public CellBroadcastChannelRange(Context context, int subId, String channelRange) {
             mAlertType = AlertType.DEFAULT;
@@ -269,7 +277,14 @@ public class CellBroadcastChannelManager {
                                     mIsDebugBuildOnly = true;
                                 }
                                 break;
-
+                            case KEY_LANGUAGE_CODE:
+                                mLanguageCode = value;
+                                break;
+                            case KEY_DIALOG_WITH_NOTIFICATION:
+                                if (value.equalsIgnoreCase("true")) {
+                                    mDisplayDialogWithNotification = true;
+                                }
+                                break;
                         }
                     }
                 }
@@ -303,7 +318,9 @@ public class CellBroadcastChannelManager {
                     + ",display=" + mDisplay + ",testMode=" + mTestMode + ",mAlwaysOn="
                     + mAlwaysOn + ",ScreenOnDuration=" + mScreenOnDuration + ", displayIcon="
                     + mDisplayIcon + "dismissOnOutsideTouch=" + mDismissOnOutsideTouch
-                    + ", mIsDebugBuildOnly =" + mIsDebugBuildOnly + "]";
+                    + ", mIsDebugBuildOnly =" + mIsDebugBuildOnly
+                    + ", languageCode=" + mLanguageCode
+                    + ", mDisplayDialogWithNotification=" + mDisplayDialogWithNotification + "]";
         }
     }
 
