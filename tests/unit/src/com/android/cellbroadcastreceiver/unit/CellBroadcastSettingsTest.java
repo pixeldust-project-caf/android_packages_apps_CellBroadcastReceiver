@@ -51,6 +51,7 @@ import androidx.test.runner.AndroidJUnit4;
 
 import com.android.cellbroadcastreceiver.CellBroadcastConfigService;
 import com.android.cellbroadcastreceiver.CellBroadcastSettings;
+import com.android.modules.utils.build.SdkLevel;
 
 import junit.framework.Assert;
 
@@ -203,8 +204,6 @@ public class CellBroadcastSettingsTest extends
 
         Context mockContext2 = mock(Context.class);
         doReturn(mockResources).when(mockContext2).getResources();
-        Configuration config = new Configuration();
-        doReturn(config).when(mockResources).getConfiguration();
         SubscriptionManager mockSubManager = mock(SubscriptionManager.class);
         doReturn(Context.TELEPHONY_SUBSCRIPTION_SERVICE).when(mockContext)
                 .getSystemServiceName(eq(SubscriptionManager.class));
@@ -224,27 +223,29 @@ public class CellBroadcastSettingsTest extends
         verify(mockContext2, times(1)).getResources();
 
         // The resources will be cached for ths sub
-        config.mcc = 123;
-        config.mnc = 456;
+        doReturn(123).when(mockSubInfo).getMcc();
+        doReturn(456).when(mockSubInfo).getMnc();
+        // The cache logic is updated on S
+        final int timesExpected = SdkLevel.isAtLeastS() ? 2 : 1;
 
         CellBroadcastSettings.getResources(
                 mockContext, SubscriptionManager.DEFAULT_SUBSCRIPTION_ID - 1);
 
         verify(mockContext, times(2)).getResources();
-        verify(mockContext2, times(2)).getResources();
+        verify(mockContext2, times(timesExpected)).getResources();
 
         // The resources should be read from the cached directly
         CellBroadcastSettings.getResources(
                 mockContext, SubscriptionManager.DEFAULT_SUBSCRIPTION_ID - 1);
 
         verify(mockContext, times(2)).getResources();
-        verify(mockContext2, times(2)).getResources();
+        verify(mockContext2, times(timesExpected)).getResources();
 
         CellBroadcastSettings.getResources(
                 mockContext, SubscriptionManager.DEFAULT_SUBSCRIPTION_ID - 2);
 
         verify(mockContext, times(2)).getResources();
-        verify(mockContext2, times(3)).getResources();
+        verify(mockContext2, times(timesExpected + 1)).getResources();
     }
 
     @Test
