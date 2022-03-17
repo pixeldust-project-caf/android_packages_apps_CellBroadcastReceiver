@@ -36,6 +36,8 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.PowerManager;
 import android.telephony.SmsCbMessage;
+import android.telephony.SubscriptionInfo;
+import android.telephony.SubscriptionManager;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -112,6 +114,12 @@ public class CellBroadcastAlertDialogTest extends
         mPowerManager = new PowerManager(mContext, mMockedPowerManagerService,
                 mMockedThermalService, null);
         injectSystemService(PowerManager.class, mPowerManager);
+
+        SubscriptionManager mockSubManager = mock(SubscriptionManager.class);
+        injectSystemService(SubscriptionManager.class, mockSubManager);
+        SubscriptionInfo mockSubInfo = mock(SubscriptionInfo.class);
+        doReturn(mockSubInfo).when(mockSubManager).getActiveSubscriptionInfo(anyInt());
+
         CellBroadcastSettings.resetResourcesCache();
     }
 
@@ -172,6 +180,15 @@ public class CellBroadcastAlertDialogTest extends
                 b.getCharSequence(Notification.EXTRA_TITLE).toString()));
         assertEquals(CellBroadcastAlertServiceTest.createMessage(98235).getMessageBody(),
                 b.getCharSequence(Notification.EXTRA_TEXT));
+    }
+
+    public void testDoNotAddToNotificationOnStop() throws Throwable {
+        startActivity();
+        waitForMs(100);
+        stopActivity();
+        waitForMs(100);
+        verify(mMockedNotificationManager, times(0)).notify(mInt.capture(),
+                mNotification.capture());
     }
 
     public void testGetNewMessageListIfNeeded() throws Throwable {
