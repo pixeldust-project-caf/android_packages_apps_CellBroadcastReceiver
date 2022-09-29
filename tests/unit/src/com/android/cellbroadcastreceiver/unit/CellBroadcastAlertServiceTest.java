@@ -20,14 +20,17 @@ import static com.android.cellbroadcastreceiver.CellBroadcastAlertAudio.ALERT_AU
 import static com.android.cellbroadcastreceiver.CellBroadcastAlertService.SHOW_NEW_ALERT_ACTION;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.provider.Telephony;
 import android.telephony.AccessNetworkConstants;
@@ -53,6 +56,9 @@ public class CellBroadcastAlertServiceTest extends
         CellBroadcastServiceTestCase<CellBroadcastAlertService> {
     @Mock
     ServiceState mockSS;
+
+    @Mock
+    SharedPreferences.Editor mMockEditor;
 
     public CellBroadcastAlertServiceTest() {
         super(CellBroadcastAlertService.class);
@@ -86,6 +92,9 @@ public class CellBroadcastAlertServiceTest extends
         super.setUp();
         // No roaming supported by default
         doReturn("").when(mMockedSharedPreferences).getString(anyString(), anyString());
+        doReturn(mMockEditor).when(mMockedSharedPreferences).edit();
+        doReturn(mMockEditor).when(mMockEditor).putBoolean(anyString(), anyBoolean());
+        doNothing().when(mMockEditor).apply();
     }
 
     @After
@@ -464,5 +473,49 @@ public class CellBroadcastAlertServiceTest extends
         assertTrue("Should enable local test channel",
                 cellBroadcastAlertService.shouldDisplayMessage(message2));
         ((TestContextWrapper) mContext).injectCreateConfigurationContext(null);
+    }
+
+    public void testFilterLanguage() {
+        final String language = "en";
+        final String language2nd = "es";
+        doReturn(new String[]{"0x112E:rat=gsm, emergency=true, filter_language=true",
+                "0x112F:rat=gsm, emergency=true"}).when(mResources).getStringArray(
+                        eq(com.android.cellbroadcastreceiver.R.array
+                                .state_local_test_alert_range_strings));
+        doReturn(language).when(mResources).getString(
+                eq(com.android.cellbroadcastreceiver.R.string
+                        .emergency_alert_second_language_code));
+        enablePreference(CellBroadcastSettings.KEY_ENABLE_ALERTS_MASTER_TOGGLE);
+        enablePreference(CellBroadcastSettings.KEY_ENABLE_STATE_LOCAL_TEST_ALERTS);
+        enablePreference(CellBroadcastSettings.KEY_RECEIVE_CMAS_IN_SECOND_LANGUAGE);
+
+        sendMessage(1);
+        waitForServiceIntent();
+        CellBroadcastAlertService cellBroadcastAlertService =
+                (CellBroadcastAlertService) getService();
+
+        // Verify the message with the same language to be displayed for the channel
+        // with filter_language=true
+        SmsCbMessage message = new SmsCbMessage(1, 2, 3, new SmsCbLocation(), 0x112E,
+                language, "body", SmsCbMessage.MESSAGE_PRIORITY_NORMAL, null, null, 0, 1);
+
+        assertTrue("Should display the message",
+                cellBroadcastAlertService.shouldDisplayMessage(message));
+
+        // Verify the message with the different language not to be displayed for the channel
+        // with filter_language=true
+        SmsCbMessage message2 = new SmsCbMessage(1, 2, 3, new SmsCbLocation(), 0x112E,
+                language2nd, "body", SmsCbMessage.MESSAGE_PRIORITY_NORMAL, null, null, 0, 1);
+
+        assertFalse("Should not display the message",
+                cellBroadcastAlertService.shouldDisplayMessage(message2));
+
+        // Verify the message with the different language to be displayed for the channel
+        // without filter_language=true
+        SmsCbMessage message3 = new SmsCbMessage(1, 2, 3, new SmsCbLocation(), 0x112F,
+                language2nd, "body", SmsCbMessage.MESSAGE_PRIORITY_NORMAL, null, null, 0, 1);
+
+        assertTrue("Should display the message",
+                cellBroadcastAlertService.shouldDisplayMessage(message3));
     }
 }

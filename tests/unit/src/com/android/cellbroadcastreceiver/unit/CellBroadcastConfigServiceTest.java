@@ -42,7 +42,6 @@ import android.test.suitebuilder.annotation.SmallTest;
 import com.android.cellbroadcastreceiver.CellBroadcastChannelManager.CellBroadcastChannelRange;
 import com.android.cellbroadcastreceiver.CellBroadcastConfigService;
 import com.android.cellbroadcastreceiver.CellBroadcastSettings;
-import com.android.cellbroadcastreceiver.unit.CellBroadcastTest;
 import com.android.internal.telephony.ISms;
 import com.android.internal.telephony.cdma.sms.SmsEnvelope;
 import com.android.internal.telephony.gsm.SmsCbConstants;
@@ -888,6 +887,14 @@ public class CellBroadcastConfigServiceTest extends CellBroadcastTest {
                 eq(SubscriptionManager.INVALID_SUBSCRIPTION_ID));
         verify(mConfigService, times(1)).enableCellBroadcastRoamingChannelsAsNeeded(
                 eq(SubscriptionManager.INVALID_SUBSCRIPTION_ID));
+
+        doReturn(true).when(mConfigService).isMockModemRunning();
+        method.invoke(mConfigService, mIntent);
+        verify(mContext, times(1)).sendBroadcast(any(), anyString());
+
+        doReturn(false).when(mConfigService).isMockModemRunning();
+        method.invoke(mConfigService, mIntent);
+        verify(mContext, times(1)).sendBroadcast(any(), anyString());
     }
 
     /**

@@ -17,7 +17,11 @@
 package com.android.cellbroadcastreceiver;
 
 import static com.android.cellbroadcastreceiver.CellBroadcastReceiver.VDBG;
+import static com.android.cellbroadcastservice.CellBroadcastMetrics.ERRSRC_CBR;
+import static com.android.cellbroadcastservice.CellBroadcastMetrics.ERRTYPE_CHANNEL_R;
+import static com.android.cellbroadcastservice.CellBroadcastMetrics.ERRTYPE_ENABLECHANNEL;
 
+import android.Manifest;
 import android.app.IntentService;
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -32,6 +36,7 @@ import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
 import android.text.TextUtils;
 import android.util.Log;
+import android.util.Pair;
 
 import androidx.annotation.NonNull;
 
@@ -42,6 +47,7 @@ import com.android.modules.utils.build.SdkLevel;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -58,9 +64,14 @@ import java.util.List;
 public class CellBroadcastConfigService extends IntentService {
     private static final String TAG = "CellBroadcastConfigService";
 
+    private HashSet<Pair<Integer, Integer>> mChannelRangeForMetric = new HashSet<>();
+
     @VisibleForTesting
     public static final String ACTION_ENABLE_CHANNELS = "ACTION_ENABLE_CHANNELS";
     public static final String ACTION_UPDATE_SETTINGS_FOR_CARRIER = "UPDATE_SETTINGS_FOR_CARRIER";
+
+    private static final String ACTION_SET_CHANNELS_DONE =
+            "android.cellbroadcast.compliancetest.SET_CHANNELS_DONE";
 
     public CellBroadcastConfigService() {
         super(TAG);          // use class name for worker thread name
@@ -74,7 +85,8 @@ public class CellBroadcastConfigService extends IntentService {
                         .getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE);
 
                 if (subManager != null) {
-                    // Retrieve all the active subscription indice and enable cell broadcast
+                    mChannelRangeForMetric.clear();
+                    // Retrieve all the active subscription inside and enable cell broadcast
                     // messages on all subs. The duplication detection will be done at the
                     // frameworks.
                     int[] subIds = getActiveSubIdList(subManager);
@@ -83,6 +95,8 @@ public class CellBroadcastConfigService extends IntentService {
                             log("Enable CellBroadcast on sub " + subId);
                             enableCellBroadcastChannels(subId);
                             enableCellBroadcastRoamingChannelsAsNeeded(subId);
+
+                            broadcastSetChannelsIsDone(subId);
                         }
                     } else {
                         // For no sim scenario.
@@ -90,8 +104,17 @@ public class CellBroadcastConfigService extends IntentService {
                         enableCellBroadcastRoamingChannelsAsNeeded(
                                 SubscriptionManager.DEFAULT_SUBSCRIPTION_ID);
                     }
+
+                    String roamingOperator = CellBroadcastReceiver.getRoamingOperatorSupported(
+                            this);
+                    CellBroadcastReceiverMetrics.getInstance().onConfigUpdated(
+                            getApplicationContext(),
+                            roamingOperator.isEmpty() ? "" : roamingOperator,
+                            mChannelRangeForMetric);
                 }
             } catch (Exception ex) {
+                CellBroadcastReceiverMetrics.getInstance().logModuleError(
+                        ERRSRC_CBR, ERRTYPE_ENABLECHANNEL);
                 Log.e(TAG, "exception enabling cell broadcast channels", ex);
             }
         } else if (ACTION_UPDATE_SETTINGS_FOR_CARRIER.equals(intent.getAction())) {
@@ -153,6 +176,8 @@ public class CellBroadcastConfigService extends IntentService {
                 Method method = SmsManager.class.getDeclaredMethod("resetAllCellBroadcastRanges");
                 method.invoke(manager);
             } catch (Exception e) {
+                CellBroadcastReceiverMetrics.getInstance().logModuleError(
+                        ERRSRC_CBR, ERRTYPE_CHANNEL_R);
                 log("Can't reset cell broadcast ranges. e=" + e);
             }
         }
@@ -335,7 +360,7 @@ public class CellBroadcastConfigService extends IntentService {
                 channelManager.getCellBroadcastChannelRanges(
                         R.array.additional_cbs_channels_strings);
 
-        for (CellBroadcastChannelRange range: ranges) {
+        for (CellBroadcastChannelRange range : ranges) {
             boolean enableAlerts;
             switch (range.mAlertType) {
                 case AREA:
@@ -368,7 +393,6 @@ public class CellBroadcastConfigService extends IntentService {
         if (roamingOperator.isEmpty()) {
             return;
         }
-
         log("enableCellBroadcastRoamingChannels for roaming network:" + roamingOperator);
         Resources res = getResources(subId, roamingOperator);
 
@@ -422,10 +446,11 @@ public class CellBroadcastConfigService extends IntentService {
 
     /**
      * Enable/disable cell broadcast with messages id range
-     * @param subId Subscription index
+     *
+     * @param subId         Subscription index
      * @param isEnableOnly, True for enabling channel only for roaming network
-     * @param enable True for enabling cell broadcast with id range, otherwise for disabling
-     * @param ranges Cell broadcast id ranges
+     * @param enable        True for enabling cell broadcast with id range, otherwise for disabling
+     * @param ranges        Cell broadcast id ranges
      */
     private void setCellBroadcastRange(int subId, boolean isEnableOnly,
             boolean enable, List<CellBroadcastChannelRange> ranges) {
@@ -437,7 +462,7 @@ public class CellBroadcastConfigService extends IntentService {
         }
 
         if (ranges != null) {
-            for (CellBroadcastChannelRange range: ranges) {
+            for (CellBroadcastChannelRange range : ranges) {
                 if (range.mAlwaysOn) {
                     log("mAlwaysOn is set to true, enable the range: " + range.mStartId
                             + ":" + range.mEndId);
@@ -449,6 +474,7 @@ public class CellBroadcastConfigService extends IntentService {
                         log("enableCellBroadcastRange[" + range.mStartId + "-" + range.mEndId
                                 + "], type:" + range.mRanType);
                     }
+                    mChannelRangeForMetric.add(new Pair(range.mStartId, range.mEndId));
                     manager.enableCellBroadcastRange(range.mStartId, range.mEndId, range.mRanType);
                 } else if (!isEnableOnly) {
                     if (VDBG) {
@@ -464,9 +490,10 @@ public class CellBroadcastConfigService extends IntentService {
 
     /**
      * Get resource according to the operator or subId
-     * @param subId Subscription index
+     *
+     * @param subId    Subscription index
      * @param operator Operator numeric, the resource will be retrieved by it if it is no null,
-     * otherwise, by the sub id.
+     *                 otherwise, by the sub id.
      */
     @VisibleForTesting
     public Resources getResources(int subId, String operator) {
@@ -474,6 +501,25 @@ public class CellBroadcastConfigService extends IntentService {
             return CellBroadcastSettings.getResources(this, subId);
         }
         return CellBroadcastSettings.getResourcesByOperator(this, subId, operator);
+    }
+
+    private void broadcastSetChannelsIsDone(int subId) {
+        if (!isMockModemRunning()) {
+            return;
+        }
+        Intent intent = new Intent(ACTION_SET_CHANNELS_DONE);
+        intent.putExtra("sub_id", subId);
+        sendBroadcast(intent, Manifest.permission.READ_CELL_BROADCASTS);
+        Log.d(TAG, "broadcastSetChannelsIsDone subId = " + subId);
+    }
+
+    /**
+     * Check if mockmodem is running
+     * @return true if mockmodem service is running instead of real modem
+     */
+    @VisibleForTesting
+    public boolean isMockModemRunning() {
+        return CellBroadcastReceiver.isMockModemBinded();
     }
 
     private static void log(String msg) {
