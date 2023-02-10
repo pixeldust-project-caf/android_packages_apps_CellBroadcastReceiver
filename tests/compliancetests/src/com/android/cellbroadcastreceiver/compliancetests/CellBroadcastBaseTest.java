@@ -28,7 +28,9 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.SystemProperties;
 import android.support.test.uiautomator.UiDevice;
+import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
+import android.telephony.mockmodem.IRadioMessagingImpl;
 import android.telephony.mockmodem.MockModemConfigBase.SimInfoChangedResult;
 import android.telephony.mockmodem.MockModemManager;
 import android.telephony.mockmodem.MockSimService;
@@ -57,6 +59,7 @@ import java.util.concurrent.TimeUnit;
 public class CellBroadcastBaseTest {
     private static final String TAG = "CellBroadcastBaseTest";
     protected static MockModemManager sMockModemManager;
+    protected static int sSlotId = 0;
     protected static JSONObject sCarriersObject;
     protected static JSONObject sChannelsObject;
     protected static JSONObject sSettingsObject;
@@ -87,8 +90,27 @@ public class CellBroadcastBaseTest {
     protected static UiDevice sDevice = null;
     protected static String sPackageName = null;
 
+    protected static IRadioMessagingImpl.CallBackWithExecutor sCallBackWithExecutor = null;
+
     protected static Context getContext() {
         return InstrumentationRegistry.getInstrumentation().getContext();
+    }
+
+    private static class BroadcastChannelListener
+            implements IRadioMessagingImpl.BroadcastCallback {
+        @Override
+        public void onGsmBroadcastActivated() {
+            TelephonyManager tm = getContext().getSystemService(TelephonyManager.class);
+            logd("onGsmBroadcastActivated, mccmnc = " + tm.getSimOperator());
+            if (sInputMccMnc != null && sInputMccMnc.equals(tm.getSimOperator())) {
+                sSetChannelIsDone.countDown();
+                logd("wait is released");
+            }
+        }
+
+        @Override
+        public void onCdmaBroadcastActivated() {
+        }
     }
 
     @BeforeClass
@@ -123,34 +145,42 @@ public class CellBroadcastBaseTest {
             return;
         }
 
-        sReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                String action = intent.getAction();
-                if (ACTION_SET_CHANNELS_DONE.equals(action)) {
-                    int subId = intent.getIntExtra("sub_id", -1);
-                    logd("INTENT_SET_CHANNELS_DONE is received, subId=" + subId);
-                    TelephonyManager tm = getContext().getSystemService(TelephonyManager.class)
-                            .createForSubscriptionId(subId);
-                    if (tm != null) {
-                        String mccMncOfIntent = tm.getSimOperator();
-                        logd("mccMncOfIntent = " + mccMncOfIntent);
-                        if (sInputMccMnc != null && sInputMccMnc.equals(mccMncOfIntent)) {
-                            sSetChannelIsDone.countDown();
-                            logd("wait is released");
+        if (!SdkLevel.isAtLeastU()) {
+            sReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    String action = intent.getAction();
+                    if (ACTION_SET_CHANNELS_DONE.equals(action)) {
+                        int subId = intent.getIntExtra("sub_id", -1);
+                        logd("INTENT_SET_CHANNELS_DONE is received, subId=" + subId);
+                        TelephonyManager tm = getContext().getSystemService(TelephonyManager.class)
+                                .createForSubscriptionId(subId);
+                        if (tm != null) {
+                            String mccMncOfIntent = tm.getSimOperator();
+                            logd("mccMncOfIntent = " + mccMncOfIntent);
+                            if (sInputMccMnc != null && sInputMccMnc.equals(mccMncOfIntent)) {
+                                sSetChannelIsDone.countDown();
+                                logd("wait is released");
+                            }
                         }
                     }
                 }
-            }
-        };
-
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(ACTION_SET_CHANNELS_DONE);
-        getContext().registerReceiver(sReceiver, filter, Context.RECEIVER_EXPORTED);
+            };
+            IntentFilter filter = new IntentFilter();
+            filter.addAction(ACTION_SET_CHANNELS_DONE);
+            getContext().registerReceiver(sReceiver, filter, Context.RECEIVER_EXPORTED);
+        }
 
         sMockModemManager = new MockModemManager();
         assertTrue(sMockModemManager.connectMockModemService(
                 MockSimService.MOCK_SIM_PROFILE_ID_TWN_CHT));
+        sSlotId = SubscriptionManager.getSlotIndex(SubscriptionManager.getDefaultSubscriptionId());
+        if (SdkLevel.isAtLeastU()) {
+            BroadcastChannelListener broadcastCallback = new BroadcastChannelListener();
+            sCallBackWithExecutor = new IRadioMessagingImpl.CallBackWithExecutor(
+                    Runnable::run, broadcastCallback);
+            sMockModemManager.registerBroadcastCallback(sSlotId, sCallBackWithExecutor);
+        }
         waitForNotify();
 
         String jsonCarrier = loadJsonFile(CARRIER_LISTS_JSON);
@@ -184,7 +214,9 @@ public class CellBroadcastBaseTest {
         if (sReceiver != null) {
             getContext().unregisterReceiver(sReceiver);
         }
-
+        if (sCallBackWithExecutor != null && sMockModemManager != null) {
+            sMockModemManager.unregisterBroadcastCallback(sSlotId, sCallBackWithExecutor);
+        }
         if (sMockModemManager != null) {
             // Rebind all interfaces which is binding to MockModemService to default.
             assertTrue(sMockModemManager.disconnectMockModemService());
