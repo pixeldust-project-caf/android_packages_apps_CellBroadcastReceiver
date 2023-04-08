@@ -47,6 +47,7 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.widget.AbsListView.MultiChoiceModeListener;
 import android.widget.ListView;
 import android.widget.TextView;
@@ -93,6 +94,11 @@ public class CellBroadcastListActivity extends CollapsingToolbarBaseActivity {
             mListFragment.setActivity(this);
             fm.beginTransaction().add(com.android.settingslib.widget.R.id.content_frame,
                     mListFragment).commit();
+        }
+
+        if (CellBroadcastSettings.getResourcesForDefaultSubId(getApplicationContext()).getBoolean(
+                R.bool.disable_capture_alert_dialog)) {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         }
     }
 
