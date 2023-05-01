@@ -54,6 +54,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.preference.PreferenceManager;
@@ -844,18 +845,32 @@ public class CellBroadcastAlertService extends Service {
 
         // increment unread alert count (decremented when user dismisses alert dialog)
         int unreadCount = messageList.size();
-        if (unreadCount > 1) {
+        if (unreadCount > 1 || res.getBoolean(R.bool.disable_capture_alert_dialog)) {
             // use generic count of unread broadcasts if more than one unread
-            builder.setContentTitle(context.getString(R.string.notification_multiple_title));
+            if (res.getBoolean(R.bool.show_alert_title)) {
+                builder.setContentTitle(context.getString(R.string.notification_multiple_title));
+            }
             builder.setContentText(context.getString(R.string.notification_multiple, unreadCount));
         } else {
-            builder.setContentTitle(channelName)
-                    .setContentText(messageBody)
-                    .setStyle(new Notification.BigTextStyle()
-                            .bigText(messageBody));
+            if (res.getBoolean(R.bool.show_alert_title)) {
+                builder.setContentTitle(channelName);
+            }
+            builder.setContentText(messageBody)
+                    .setStyle(new Notification.BigTextStyle().bigText(messageBody));
         }
 
         notificationManager.notify(NOTIFICATION_ID, builder.build());
+
+        // SysUI does not wake screen up when notification received. For emergency alert, manually
+        // wakes up the screen for 1 second.
+        if (isWatch) {
+            PowerManager powerManager = (PowerManager) context
+                    .getSystemService(Context.POWER_SERVICE);
+            PowerManager.WakeLock fullWakeLock = powerManager.newWakeLock(
+                    (PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.FULL_WAKE_LOCK
+                            | PowerManager.ACQUIRE_CAUSES_WAKEUP), TAG);
+            fullWakeLock.acquire(1000);
+        }
 
         // FEATURE_WATCH devices do not have global sounds for notifications; only vibrate.
         // TW requires sounds for 911/919
